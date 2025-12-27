@@ -4,7 +4,8 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 type LogEntry = { id: string; amount: number; time: string; type: 'cig' | 'other' };
 type DayDetail = { cigTotal: number; otherTotal: number; logs: LogEntry[] };
 type DailyData = { [date: string]: DayDetail };
-type YearlyArchive = { [year: string]: { cigTotal: number; otherTotal: number } };
+// Archives now stores the average per day for that year
+type YearlyArchive = { [year: string]: { cigAvg: number; otherAvg: number; totalDaysRecorded: number } };
 
 type DataContextType = {
   dailyData: DailyData;
@@ -22,6 +23,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const getTodayStr = () => new Date().toISOString().split('T')[0];
+  const getCurrentYear = () => new Date().getFullYear().toString();
 
   useEffect(() => { loadData(); }, []);
 
@@ -29,8 +31,45 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     try {
       const storedDaily = await AsyncStorage.getItem('dailyData_v3');
       const storedArchives = await AsyncStorage.getItem('yearlyArchives_v3');
-      if (storedDaily) setDailyData(JSON.parse(storedDaily));
-      if (storedArchives) setArchives(JSON.parse(storedArchives));
+      
+      let parsedDaily: DailyData = storedDaily ? JSON.parse(storedDaily) : {};
+      let parsedArchives: YearlyArchive = storedArchives ? JSON.parse(storedArchives) : {};
+
+      // YEARLY RESET LOGIC
+      const currentYear = getCurrentYear();
+      const yearsInDaily = Object.keys(parsedDaily).map(date => date.split('-')[0]);
+      const oldYears = yearsInDaily.filter(y => y !== currentYear);
+
+      if (oldYears.length > 0) {
+        // Calculate averages for old years and move to archive
+        oldYears.forEach(year => {
+            if (parsedArchives[year]) return; // Already archived
+
+            const daysOfYear = Object.entries(parsedDaily).filter(([date]) => date.startsWith(year));
+            const totalDays = daysOfYear.length;
+            
+            if (totalDays > 0) {
+                const totalCig = daysOfYear.reduce((acc, [, data]) => acc + data.cigTotal, 0);
+                const totalOther = daysOfYear.reduce((acc, [, data]) => acc + data.otherTotal, 0);
+                
+                parsedArchives[year] = {
+                    cigAvg: parseFloat((totalCig / totalDays).toFixed(2)),
+                    otherAvg: parseFloat((totalOther / totalDays).toFixed(2)),
+                    totalDaysRecorded: totalDays
+                };
+            }
+            
+            // Delete old entries from dailyData
+            daysOfYear.forEach(([date]) => delete parsedDaily[date]);
+        });
+
+        // Save updates
+        await AsyncStorage.setItem('dailyData_v3', JSON.stringify(parsedDaily));
+        await AsyncStorage.setItem('yearlyArchives_v3', JSON.stringify(parsedArchives));
+      }
+
+      setDailyData(parsedDaily);
+      setArchives(parsedArchives);
     } finally { setIsLoading(false); }
   };
 
@@ -66,7 +105,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const filteredLogs = dayData.logs.filter(l => l.id !== logId);
     
-    // Ricalcolo totale esatto dai log rimanenti
     const newCigTotal = filteredLogs.filter(l => l.type === 'cig').reduce((acc, curr) => acc + curr.amount, 0);
     const newOtherTotal = filteredLogs.filter(l => l.type === 'other').reduce((acc, curr) => acc + curr.amount, 0);
 

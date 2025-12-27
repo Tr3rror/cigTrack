@@ -1,25 +1,120 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState, useMemo, useRef } from 'react';
+import {
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+  Animated,
+  PanResponder,
+  Dimensions,
+} from 'react-native';
+// ✅ Using correct SafeAreaView
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useData } from '../../C_Custom/DataContext';
 import { useTheme } from '../../C_Custom/ThemeContext';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// SNAP POINTS (Distance from the BOTTOM of the screen)
+const SNAP_EXPANDED = SCREEN_HEIGHT * 0.9;
+const SNAP_MID = SCREEN_HEIGHT * 0.6;
+const SNAP_COLLAPSED = 0; 
 
 export default function Home() {
   const { colors } = useTheme();
   const { dailyData, deleteLog } = useData();
   const router = useRouter();
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'cig' | 'other'>('cig');
+
+  /* ---------------- BOTTOM SHEET ANIMATION ---------------- */
+  // We start at 0 (bottom of screen)
+  const translateY = useRef(new Animated.Value(0)).current;
+  const lastOffset = useRef(0);
+
+  const animateTo = (to: number) => {
+    lastOffset.current = to;
+    Animated.spring(translateY, {
+      toValue: -to, // Negative because we move UP from the bottom
+      tension: 60,
+      friction: 10,
+      useNativeDriver: true, // Performance boost
+    }).start();
+  };
+
+  const resetModal = () => {
+    // Animate down then close
+    Animated.timing(translateY, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedDay(null);
+      lastOffset.current = 0;
+    });
+  };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dy) > 5,
+      onPanResponderMove: (_, g) => {
+        // g.dy is positive when dragging DOWN
+        let newPos = lastOffset.current - g.dy;
+        if (newPos > SNAP_EXPANDED) newPos = SNAP_EXPANDED + (newPos - SNAP_EXPANDED) * 0.2;
+        translateY.setValue(-newPos);
+      },
+      onPanResponderRelease: (_, g) => {
+        const current = lastOffset.current - g.dy;
+        const velocity = g.vy;
+
+        if (velocity < -0.5) {
+          animateTo(SNAP_EXPANDED);
+        } else if (velocity > 0.5) {
+          if (current < SNAP_MID) resetModal();
+          else animateTo(SNAP_MID);
+        } else {
+          if (current > (SNAP_MID + SNAP_EXPANDED) / 2) animateTo(SNAP_EXPANDED);
+          else if (current > SNAP_MID / 2) animateTo(SNAP_MID);
+          else resetModal();
+        }
+      },
+    })
+  ).current;
+
+  /* ---------------- DATA LOGIC ---------------- */
   const today = new Date();
   const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const calendarDays = Array.from({ length: daysInMonth }, (_, i) => {
-    const day = i + 1;
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  });
+
+  const calendarDays = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => {
+    const d = i + 1;
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  }), [daysInMonth]);
+
+  const getWeeklyStats = () => {
+    let total = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const dayData = dailyData[dStr];
+      if (dayData) total += viewMode === 'cig' ? dayData.cigTotal : dayData.otherTotal;
+    }
+    return total.toFixed(1);
+  };
+
+  const filteredLogsForModal = useMemo(() => {
+    if (!selectedDay || !dailyData[selectedDay]) return [];
+    return dailyData[selectedDay].logs.filter((l) => l.type === viewMode);
+  }, [selectedDay, dailyData, viewMode]);
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()}>
           <Ionicons name="chevron-back" size={30} color={colors.text} />
@@ -28,82 +123,122 @@ export default function Home() {
         <View style={{ width: 30 }} />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Mese Corrente</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        <View style={styles.toggleContainer}>
+          {(['cig', 'other'] as const).map((m) => (
+            <TouchableOpacity
+              key={m}
+              style={[styles.toggleBtn, { backgroundColor: viewMode === m ? colors.primary : colors.card }]}
+              onPress={() => setViewMode(m)}
+            >
+              <Text style={{ color: viewMode === m ? '#FFF' : colors.text, fontWeight: '900' }}>
+                {m === 'cig' ? 'SIGARETTE 🚬' : 'ALTRO ✨'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+          <Text style={[styles.statTitle, { color: colors.accent }]}>TOTALE ULTIMI 7 GIORNI</Text>
+          <Text style={[styles.statValue, { color: colors.primary }]}>{getWeeklyStats()}</Text>
+        </View>
+
         <View style={styles.calendarGrid}>
-          {calendarDays.map((dateStr) => {
-            const data = dailyData[dateStr];
+          {calendarDays.map((d) => {
+            const data = dailyData[d];
+            const value = data ? (viewMode === 'cig' ? data.cigTotal : data.otherTotal) : 0;
             return (
-              <TouchableOpacity 
-                key={dateStr} 
-                style={[styles.dayCell, { backgroundColor: colors.card, borderColor: data ? colors.primary : 'transparent' }]}
-                onPress={() => setSelectedDay(dateStr)}
+              <TouchableOpacity
+                key={d}
+                style={[styles.dayCell, { backgroundColor: colors.card, borderColor: value ? colors.primary : '#3333', borderWidth: value ? 2 : 1 }]}
+                onPress={() => {
+                  setSelectedDay(d);
+                  animateTo(SNAP_MID);
+                }}
               >
-                <Text style={[styles.dayNumber, { color: colors.accent }]}>{dateStr.split('-')[2]}</Text>
-                {data && (
-                  <View style={styles.miniStats}>
-                    <Text style={{ fontSize: 9, color: colors.primary }}>C:{data.cigTotal.toFixed(0)}</Text>
-                    <Text style={{ fontSize: 9, color: colors.accent }}>O:{data.otherTotal.toFixed(0)}</Text>
-                  </View>
-                )}
+                <Text style={{ color: colors.accent, fontSize: 10 }}>{d.split('-')[2]}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '900', color: value ? colors.text : colors.accent, opacity: value ? 1 : 0.3 }}>
+                  {value || '-'}
+                </Text>
               </TouchableOpacity>
             );
           })}
         </View>
-
-        <Modal visible={!!selectedDay} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
-              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: colors.text }]}>Dettaglio {selectedDay}</Text>
-                <TouchableOpacity onPress={() => setSelectedDay(null)}>
-                  <Ionicons name="close-circle" size={32} color={colors.accent} />
-                </TouchableOpacity>
-              </View>
-              
-              <ScrollView>
-                {dailyData[selectedDay!]?.logs.length ? (
-                  dailyData[selectedDay!]?.logs.map((log) => (
-                    <View key={log.id} style={styles.logRow}>
-                      <View>
-                        <Text style={{ color: colors.text, fontSize: 16, fontWeight: '600' }}>
-                          {log.type === 'cig' ? '🚬' : '✨'} {log.amount.toFixed(2)}
-                        </Text>
-                        <Text style={{ color: colors.accent, fontSize: 12 }}>alle {log.time}</Text>
-                      </View>
-                      <TouchableOpacity 
-                        onPress={() => deleteLog(selectedDay!, log.id)}
-                        style={styles.trashBtn}
-                      >
-                        <Ionicons name="trash-outline" size={20} color="#E74C3C" />
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={{ color: colors.accent, textAlign: 'center', marginTop: 30 }}>Nessun dato salvato.</Text>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
       </ScrollView>
-    </View>
+
+      {/* ---------------- BOTTOM SHEET ---------------- */}
+      <Modal visible={!!selectedDay} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={styles.backdrop} activeOpacity={1} onPress={resetModal} />
+          
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                height: SNAP_EXPANDED,
+                transform: [{ translateY }], // Animating negative Y moves it up
+                bottom: -SNAP_EXPANDED, // Position it initially off-screen at the bottom
+              },
+            ]}
+          >
+            <View {...panResponder.panHandlers} style={styles.dragHandle}>
+              <View style={styles.dragIndicator} />
+              <Text style={{ color: colors.accent, fontWeight: 'bold', marginTop: 10 }}>{selectedDay}</Text>
+            </View>
+
+            <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+              {filteredLogsForModal.length > 0 ? (
+                filteredLogsForModal.map((log) => (
+                  <View key={log.id} style={styles.logRow}>
+                    <View>
+                        <Text style={{ color: colors.text, fontWeight: '900', fontSize: 18 }}>{log.amount.toFixed(2)}</Text>
+                        <Text style={{ color: colors.accent, fontSize: 12 }}>{log.time}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => deleteLog(selectedDay!, log.id)} style={styles.trashBtn}>
+                      <Ionicons name="trash-outline" size={20} color="#E74C3C" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <Text style={{ color: colors.accent, textAlign: 'center', marginTop: 40 }}>Nessun dato</Text>
+              )}
+            </ScrollView>
+          </Animated.View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 50, marginBottom: 20 },
-  title: { fontSize: 20, fontWeight: 'bold' },
-  sectionTitle: { fontSize: 14, marginBottom: 15, fontWeight: '700', textTransform: 'uppercase', opacity: 0.6 },
-  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  dayCell: { width: '18%', aspectRatio: 1, borderRadius: 12, justifyContent: 'center', alignItems: 'center', borderWidth: 1.5 },
-  dayNumber: { fontSize: 10, position: 'absolute', top: 4, left: 6 },
-  miniStats: { marginTop: 10, alignItems: 'center' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-  modalContent: { height: '60%', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 25 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold' },
-  logRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 0.5, borderBottomColor: '#8883' },
-  trashBtn: { padding: 8, backgroundColor: '#E74C3C15', borderRadius: 10 }
+  container: { flex: 1, paddingHorizontal: 15 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 15 },
+  title: { fontSize: 22, fontWeight: '900' },
+  toggleContainer: { flexDirection: 'row', marginVertical: 20, borderRadius: 15, overflow: 'hidden' },
+  toggleBtn: { flex: 1, padding: 15, alignItems: 'center' },
+  statBox: { padding: 25, borderRadius: 25, alignItems: 'center', marginBottom: 20 },
+  statTitle: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  statValue: { fontSize: 42, fontWeight: '900' },
+  calendarGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
+  dayCell: { width: '17%', aspectRatio: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+  modalContent: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    borderTopLeftRadius: 35,
+    borderTopRightRadius: 35,
+    paddingHorizontal: 20,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -5 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+  },
+  dragHandle: { alignItems: 'center', paddingTop: 15, paddingBottom: 20 },
+  dragIndicator: { width: 40, height: 5, backgroundColor: '#8885', borderRadius: 10 },
+  logRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#8882' },
+  trashBtn: { padding: 10, backgroundColor: '#E74C3C15', borderRadius: 10 }
 });
