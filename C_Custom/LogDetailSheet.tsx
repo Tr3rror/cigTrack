@@ -11,6 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/C_Custom/ThemeContext'; // Import ThemeContext
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SNAP_EXPANDED = SCREEN_HEIGHT * 0.9;
@@ -25,8 +26,20 @@ interface Props {
 }
 
 export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }: Props) => {
+  const { timeFormat } = useTheme(); // Access format preference
   const translateY = useRef(new Animated.Value(0)).current;
   const lastOffset = useRef(0);
+
+  // Helper to format time for display
+  const formatTime = (time24: string) => {
+    if (timeFormat === '24h') return time24;
+    
+    // Simple 24h to 12h conversion
+    const [h, m] = time24.split(':').map(Number);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
+  };
 
   const animateTo = (to: number) => {
     lastOffset.current = to;
@@ -101,7 +114,8 @@ export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }
                 <View key={log.id} style={styles.logRow}>
                   <View>
                     <Text style={{ color: colors.text, fontWeight: '900', fontSize: 18 }}>{log.amount.toFixed(2)}</Text>
-                    <Text style={{ color: colors.accent, fontSize: 12 }}>{log.time}</Text>
+                    {/* Use helper function to display time */}
+                    <Text style={{ color: colors.accent, fontSize: 12 }}>{formatTime(log.time)}</Text>
                   </View>
                   <TouchableOpacity onPress={() => deleteLog(selectedDay!, log.id)} style={styles.trashBtn}>
                     <Ionicons name="trash-outline" size={20} color="#E74C3C" />

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Switch } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,15 +15,22 @@ export default function Settings() {
     saveThemeToSlot,
     applySlot,
     slots,
+    activeSlot,
     resetTheme,
     timeFormat,
     toggleTimeFormat,
-    isManualMode,      // <--- Destructure this
-    toggleManualMode   // <--- Destructure this
+    isManualMode,      
+    toggleManualMode,
+    statsPrefs,
+    toggleStat
   } = useTheme();
 
   const router = useRouter();
-  const [selectedSlot, setSelectedSlot] = useState(0);
+  const [selectedSlot, setSelectedSlot] = useState(activeSlot !== null ? activeSlot : 0);
+
+  useEffect(() => {
+    if (activeSlot !== null) setSelectedSlot(activeSlot);
+  }, [activeSlot]);
 
   const handleSlotSelect = (index: number) => {
     setSelectedSlot(index);
@@ -55,6 +62,7 @@ export default function Settings() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        
         {/* Colors Section */}
         <View style={styles.pickersSection}>
           <ColorPickerModal label="Primario" currentColor={colors.primary} labelColor={colors.primary} onSelect={(c) => setCustomColor('primary', c)} />
@@ -99,8 +107,8 @@ export default function Settings() {
             </View>
           </TouchableOpacity>
 
-          {/* Manual Mode - Now Inside ScrollView */}
-          <TouchableOpacity style={[styles.prefRow, { backgroundColor: colors.card }]} onPress={toggleManualMode}>
+          {/* Manual Mode */}
+          <TouchableOpacity style={[styles.prefRow, { backgroundColor: colors.card, marginBottom: 12 }]} onPress={toggleManualMode}>
             <View>
               <Text style={[styles.prefLabel, { color: colors.text }]}>Cambio Giorno</Text>
               <Text style={{ color: colors.accent, fontSize: 12 }}>
@@ -109,7 +117,51 @@ export default function Settings() {
             </View>
             <Ionicons name={isManualMode ? "hand-right" : "sync"} size={24} color={colors.primary} />
           </TouchableOpacity>
+
+           {/* Stats Grid Switches */}
+           <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
+              <Text style={[styles.prefLabel, { color: colors.text, marginBottom: 15 }]}>Mostra Statistiche</Text>
+              <View style={styles.grid2x2}>
+                <View style={styles.gridItem}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>Totale 7gg</Text>
+                  <Switch 
+                    value={statsPrefs.show7dTotal} 
+                    onValueChange={() => toggleStat('show7dTotal')} 
+                    trackColor={{ false: '#767577', true: colors.primary }}
+                    thumbColor={'#f4f3f4'}
+                  />
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>Media 7gg</Text>
+                  <Switch 
+                    value={statsPrefs.show7dAvg} 
+                    onValueChange={() => toggleStat('show7dAvg')} 
+                    trackColor={{ false: '#767577', true: colors.primary }}
+                    thumbColor={'#f4f3f4'}
+                  />
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>Totale Mese</Text>
+                  <Switch 
+                    value={statsPrefs.showMonthTotal} 
+                    onValueChange={() => toggleStat('showMonthTotal')} 
+                    trackColor={{ false: '#767577', true: colors.primary }}
+                    thumbColor={'#f4f3f4'}
+                  />
+                </View>
+                <View style={styles.gridItem}>
+                  <Text style={[styles.switchLabel, { color: colors.text }]}>Media Mese</Text>
+                  <Switch 
+                    value={statsPrefs.showMonthAvg} 
+                    onValueChange={() => toggleStat('showMonthAvg')} 
+                    trackColor={{ false: '#767577', true: colors.primary }}
+                    thumbColor={'#f4f3f4'}
+                  />
+                </View>
+              </View>
+           </View>
         </View>
+
       </ScrollView>
 
       <View style={[styles.bottomContainer, { borderTopColor: colors.accent + '33', backgroundColor: colors.background }]}>
@@ -127,7 +179,7 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: 'bold' },
   scrollContent: { paddingHorizontal: 20, paddingBottom: 120 },
   pickersSection: { gap: 20, marginBottom: 30 },
-  slotsSection: { marginTop: 10, marginBottom: 10 }, // Reduced bottom margin
+  slotsSection: { marginTop: 10, marginBottom: 10 }, 
   sectionTitle: { fontSize: 12, fontWeight: '800', textTransform: 'uppercase', marginBottom: 15 },
   slotsRow: { flexDirection: 'row', justifyContent: 'space-between' },
   slotCard: { width: '31%', padding: 10, borderRadius: 15, alignItems: 'center', borderWidth: 2 },
@@ -145,6 +197,11 @@ const styles = StyleSheet.create({
   prefLabel: { fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
   formatBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 12 },
   formatBadgeText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 },
+
+  statsContainer: { padding: 20, borderRadius: 20 },
+  grid2x2: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  gridItem: { width: '48%', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  switchLabel: { fontSize: 12, fontWeight: '600' },
 
   actionsSection: { gap: 15, alignItems: 'center' },
   resetBtn: { padding: 15 },

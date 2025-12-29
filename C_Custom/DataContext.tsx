@@ -1,6 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useTheme } from '@/C_Custom/ThemeContext'; // <--- Import ThemeContext
 
 type LogEntry = { id: string; amount: number; time: string; type: 'cig' | 'other'; manual?: boolean; };
 type DayDetail = { cigTotal: number; otherTotal: number; logs: LogEntry[] };
@@ -18,7 +17,8 @@ type DataContextType = {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const { timeFormat } = useTheme(); // <--- Access the time format preference
+  // Removed useTheme() here. We always save in 24h format now.
+  
   const [dailyData, setDailyData] = useState<DailyData>({});
   const [archives, setArchives] = useState<YearlyArchive>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -74,22 +74,20 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const current = dailyData[today] || { cigTotal: 0, otherTotal: 0, logs: [] };
 
-    // logic: Use manualTime if provided, otherwise generate current time
     let timeString = manualTime;
 
     if (!timeString) {
-      const formatOptions: Intl.DateTimeFormatOptions = {
-        hour: timeFormat === '12h' ? 'numeric' : '2-digit',
-        minute: '2-digit',
-        hour12: timeFormat === '12h'
-      };
-      timeString = new Date().toLocaleTimeString([], formatOptions);
+      // ALWAYS generate 24h format (HH:MM) for storage
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, '0');
+      const minutes = now.getMinutes().toString().padStart(2, '0');
+      timeString = `${hours}:${minutes}`;
     }
 
     const newLog: LogEntry = {
       id: Date.now().toString(),
       amount,
-      time: timeString,
+      time: timeString, // Stored as "14:30" regardless of settings
       type,
       manual: isManualAction
     };

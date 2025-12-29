@@ -10,7 +10,6 @@ interface Props {
 }
 
 export const CalendarView = ({ viewMode, colors, calendarDays, dailyData, onDayPress }: Props) => {
-  // We force 42 slots (6 rows of 7 days) so the total grid height is ALWAYS the same.
   const totalSlots = 31; 
   const placeholders = Array.from({ length: totalSlots - calendarDays.length });
 

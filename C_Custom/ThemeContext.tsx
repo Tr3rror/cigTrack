@@ -4,6 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ThemeColors = { primary: string; bgLight: string; bgDark: string; accent: string };
 
+type StatsPrefs = {
+  show7dTotal: boolean;
+  show7dAvg: boolean;
+  showMonthTotal: boolean;
+  showMonthAvg: boolean;
+};
+
 type ThemeContextType = {
   isDark: boolean;
   toggleTheme: () => void;
@@ -13,16 +20,20 @@ type ThemeContextType = {
   saveThemeToSlot: (slotIndex: number) => Promise<void>;
   applySlot: (slotIndex: number) => void;
   slots: (ThemeColors | null)[];
-  // New Time Format Types
+  activeSlot: number | null;
   timeFormat: '12h' | '24h';
   toggleTimeFormat: () => void;
   isManualMode: boolean;       
-  toggleManualMode: () => void; 
+  toggleManualMode: () => void;
+  // New Stats Logic
+  statsPrefs: StatsPrefs;
+  toggleStat: (key: keyof StatsPrefs) => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const DEFAULT_COLORS: ThemeColors = { primary: '#FF4500', bgLight: '#F8F9FA', bgDark: '#121212', accent: '#6C757D' };
+const DEFAULT_STATS: StatsPrefs = { show7dTotal: false, show7dAvg: false, showMonthTotal: false, showMonthAvg: false };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemScheme = useColorScheme();
@@ -30,8 +41,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
   const [customColors, setCustomColors] = useState<ThemeColors>(DEFAULT_COLORS);
   const [slots, setSlots] = useState<(ThemeColors | null)[]>([null, null, null]);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null);
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('24h');
   const [isManualMode, setIsManualMode] = useState(false);
+  const [statsPrefs, setStatsPrefs] = useState<StatsPrefs>(DEFAULT_STATS);
 
   useEffect(() => {
     const loadPersistedData = async () => {
@@ -42,15 +55,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const savedSlots = await AsyncStorage.getItem('theme_slots');
         if (savedSlots) setSlots(JSON.parse(savedSlots));
 
+        const savedActiveSlot = await AsyncStorage.getItem('active_slot_index');
+        if (savedActiveSlot !== null) setActiveSlot(parseInt(savedActiveSlot, 10));
+
         const savedIsDark = await AsyncStorage.getItem('is_dark_mode');
         setIsDark(savedIsDark !== null ? JSON.parse(savedIsDark) : systemScheme === 'dark');
 
         const savedFormat = await AsyncStorage.getItem('time_format');
         if (savedFormat) setTimeFormat(savedFormat as '12h' | '24h');
 
-        // Load Manual Mode Preference
         const savedManual = await AsyncStorage.getItem('is_manual_mode');
         if (savedManual !== null) setIsManualMode(JSON.parse(savedManual));
+
+        const savedStats = await AsyncStorage.getItem('stats_prefs');
+        if (savedStats) setStatsPrefs(JSON.parse(savedStats));
 
       } catch (e) {
         console.error("Theme Load Error", e);
@@ -83,13 +101,26 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const toggleStat = (key: keyof StatsPrefs) => {
+    setStatsPrefs(prev => {
+      const updated = { ...prev, [key]: !prev[key] };
+      AsyncStorage.setItem('stats_prefs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const resetTheme = () => {
     setCustomColors(DEFAULT_COLORS);
+    setActiveSlot(null);
     AsyncStorage.setItem('current_theme', JSON.stringify(DEFAULT_COLORS));
+    AsyncStorage.removeItem('active_slot_index');
     
     const sysDefault = systemScheme === 'dark';
     setIsDark(sysDefault);
     AsyncStorage.removeItem('is_dark_mode');
+    
+    // Reset Stats too? Optional. Let's keep stats persistence separate or reset if desired. 
+    // For now we only reset colors/theme settings as implied by name.
   };
 
   const setCustomColor = (key: 'primary' | 'background' | 'accent', color: string) => {
@@ -100,6 +131,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       AsyncStorage.setItem('current_theme', JSON.stringify(updated));
       return updated;
     });
+    setActiveSlot(null); 
+    AsyncStorage.removeItem('active_slot_index');
   };
 
   const saveThemeToSlot = async (index: number) => {
@@ -107,20 +140,25 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     newSlots[index] = { ...customColors };
     setSlots(newSlots);
     await AsyncStorage.setItem('theme_slots', JSON.stringify(newSlots));
+    setActiveSlot(index);
+    await AsyncStorage.setItem('active_slot_index', index.toString());
   };
 
   const applySlot = (index: number) => {
     const selected = slots[index];
     if (selected) {
       setCustomColors(selected);
+      setActiveSlot(index);
       AsyncStorage.setItem('current_theme', JSON.stringify(selected));
+      AsyncStorage.setItem('active_slot_index', index.toString());
     }
   };
 
   const theme: ThemeContextType = {
-    isDark, toggleTheme, resetTheme, setCustomColor, saveThemeToSlot, applySlot, slots,
+    isDark, toggleTheme, resetTheme, setCustomColor, saveThemeToSlot, applySlot, slots, activeSlot,
     timeFormat, toggleTimeFormat,
-    isManualMode, toggleManualMode, // Fixed formatting here
+    isManualMode, toggleManualMode,
+    statsPrefs, toggleStat, // Exporting new stats logic
     colors: {
       background: isDark ? customColors.bgDark : customColors.bgLight,
       text: isDark ? '#FFFFFF' : '#212529',

@@ -12,6 +12,18 @@ import { useTheme } from '@/C_Custom/ThemeContext';
 
 const { width, height } = Dimensions.get('window');
 
+// --- Helper Functions ---
+
+const formatDisplayTime = (time24: string, format: '12h' | '24h') => {
+  if (format === '24h') return time24;
+  const [h, m] = time24.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
+};
+
+// --- Components ---
+
 const Header = ({ colors, router }: any) => (
   <View style={styles.header}>
     <TouchableOpacity onPress={() => router.push('/settings')}>
@@ -74,11 +86,12 @@ const ScoreCard = ({ mode, setMode, displayCount, colors }: any) => (
   </View>
 );
 
+// --- Main Screen ---
 
 export default function Index() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, isDark, isManualMode, timeFormat } = useTheme();
+  const { colors, isDark, isManualMode, timeFormat, statsPrefs } = useTheme();
   const { dailyData, addFraction } = useData();
 
   const [mode, setMode] = useState<'cig' | 'other'>('cig');
@@ -86,21 +99,18 @@ export default function Index() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [visible, setVisible] = useState(false);
 
-  const paperTheme = useMemo(() => {
-    const baseTheme = isDark ? MD3DarkTheme : MD3LightTheme;
-    return {
-      ...baseTheme,
-      colors: {
-        ...baseTheme.colors,
-        primary: colors.primary,
-        onPrimary: '#FFFFFF',
-        primaryContainer: isDark ? '#333' : '#eee',
-        onPrimaryContainer: colors.primary,
-        surface: colors.card,
-        onSurface: colors.text,
-      },
-    };
-  }, [isDark, colors]);
+  const paperTheme = useMemo(() => ({
+    ...isDark ? MD3DarkTheme : MD3LightTheme,
+    colors: {
+      ...(isDark ? MD3DarkTheme : MD3LightTheme).colors,
+      primary: colors.primary,
+      onPrimary: '#FFFFFF',
+      primaryContainer: isDark ? '#333' : '#eee',
+      onPrimaryContainer: colors.primary,
+      surface: colors.card,
+      onSurface: colors.text,
+    },
+  }), [isDark, colors]);
 
   const dateStr = isManualMode
     ? selectedDate.toISOString().split('T')[0]
@@ -108,28 +118,74 @@ export default function Index() {
 
   const todayData = dailyData[dateStr] || { cigTotal: 0, otherTotal: 0, logs: [] };
   const displayCount = mode === 'cig' ? todayData.cigTotal : todayData.otherTotal;
-
   const modeLogs = useMemo(() => todayData.logs.filter((l: any) => l.type === mode), [todayData.logs, mode]);
-  const lastTimeLabel = modeLogs.length > 0 ? `Ultima alle ${modeLogs[modeLogs.length - 1].time}` : "Nessuna sessione oggi";
+  const lastTimeLabel = modeLogs.length > 0 
+    ? `Ultima alle ${formatDisplayTime(modeLogs[modeLogs.length - 1].time, timeFormat)}` 
+    : "Nessuna sessione oggi";
 
-  const onConfirm = useCallback(
-    ({ hours, minutes }: { hours: number; minutes: number }) => {
-      setVisible(false);
-      const now = new Date();
-      now.setHours(hours);
-      now.setMinutes(minutes);
+  // --- Statistics Calculation ---
+  const stats = useMemo(() => {
+    const today = new Date();
+    const currentMonthPrefix = today.toISOString().slice(0, 7); // YYYY-MM
+    
+    // 1. Last 7 Days
+    let sum7d = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dStr = d.toISOString().split('T')[0];
+      const dayData = dailyData[dStr];
+      if (dayData) {
+        sum7d += mode === 'cig' ? dayData.cigTotal : dayData.otherTotal;
+      }
+    }
+    const avg7d = sum7d / 7;
 
-      const amountSmoked = percentRemaining === 100 ? 1 : (100 - percentRemaining) / 100;
-      const finalTimeString = now.toLocaleTimeString([], {
-        hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h'
-      });
+    // 2. Month Total
+    let sumMonth = 0;
+    let daysRecordedInMonth = 0;
+    Object.keys(dailyData).forEach(key => {
+      if (key.startsWith(currentMonthPrefix)) {
+        sumMonth += mode === 'cig' ? dailyData[key].cigTotal : dailyData[key].otherTotal;
+        daysRecordedInMonth++;
+      }
+    });
+    // Calculate avg based on day of month (e.g. if today is 5th, avg over 5 days)
+    const dayOfMonth = today.getDate();
+    const avgMonth = dayOfMonth > 0 ? sumMonth / dayOfMonth : 0;
 
-      addFraction(amountSmoked, mode, isManualMode ? dateStr : undefined, finalTimeString);
-      Alert.alert("Salvato", `Registrata alle ${finalTimeString}`);
-      setPercentRemaining(100);
-    },
-    [percentRemaining, mode, isManualMode, dateStr, timeFormat, addFraction]
-  );
+    return { sum7d, avg7d, sumMonth, avgMonth };
+  }, [dailyData, mode]);
+
+  // --- Prepare Active Stats List ---
+  const activeStats = useMemo(() => {
+    const list = [];
+    if (statsPrefs.show7dTotal) list.push({ id: '7dt', label: 'Tot 7gg', value: stats.sum7d.toFixed(1), isMonth: false });
+    if (statsPrefs.show7dAvg)   list.push({ id: '7da', label: 'Media 7gg', value: stats.avg7d.toFixed(1), isMonth: false });
+    if (statsPrefs.showMonthTotal) list.push({ id: 'mot', label: 'Tot Mese', value: stats.sumMonth.toFixed(1), isMonth: true });
+    if (statsPrefs.showMonthAvg)   list.push({ id: 'moa', label: 'Media Mese', value: stats.avgMonth.toFixed(1), isMonth: true });
+    return list;
+  }, [statsPrefs, stats]);
+
+  const onConfirmManual = useCallback(({ hours, minutes }: { hours: number; minutes: number }) => {
+    setVisible(false);
+    const amountSmoked = percentRemaining === 100 ? 1 : (100 - percentRemaining) / 100;
+    const hoursStr = hours.toString().padStart(2, '0');
+    const minStr = minutes.toString().padStart(2, '0');
+    const time24 = `${hoursStr}:${minStr}`;
+    addFraction(amountSmoked, mode, dateStr, time24);
+    Alert.alert("Salvato", `Registrata alle ${formatDisplayTime(time24, timeFormat)}`);
+    setPercentRemaining(100);
+  }, [percentRemaining, mode, dateStr, timeFormat, addFraction]);
+
+  const handlePressButton = () => {
+    if (isManualMode) setVisible(true);
+    else {
+        const amountSmoked = percentRemaining === 100 ? 1 : (100 - percentRemaining) / 100;
+        addFraction(amountSmoked, mode, undefined, undefined);
+        setPercentRemaining(100);
+    }
+  };
 
   const handlePressSlider = (evt: any) => {
     const cigWidth = width * 0.85;
@@ -154,7 +210,7 @@ export default function Index() {
           <TimePickerModal
             visible={visible}
             onDismiss={() => setVisible(false)}
-            onConfirm={onConfirm}
+            onConfirm={onConfirmManual}
             hours={new Date().getHours()}
             minutes={new Date().getMinutes()}
             label="Seleziona orario"
@@ -181,7 +237,7 @@ export default function Index() {
         </View>
 
         <View style={[styles.footer, { marginBottom: insets.bottom + 20 }]}>
-          <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={() => setVisible(true)}>
+          <TouchableOpacity style={[styles.saveButton, { backgroundColor: colors.primary }]} onPress={handlePressButton}>
             <Text style={styles.saveButtonText}>
               {percentRemaining === 100 ? "AGGIUNGI UNA INTERA" : "AGGIUNGI PARTE FUMATA"}
             </Text>
@@ -200,7 +256,7 @@ const styles = StyleSheet.create({
   dateSelector: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 30, paddingHorizontal: 10 },
   dateTextContainer: { alignItems: 'center' },
   dateTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 1 },
-  lastSmokedText: { fontSize: 14, fontWeight: '600', marginBottom: 12 },
+  lastSmokedText: { fontSize: 14, fontWeight: '600', marginBottom: 12, marginTop: 10 }, // Added marginTop for spacing from Grid
   scoreCard: { paddingVertical: 20, borderRadius: 25, width: '100%', elevation: 4, borderWidth: 1, marginBottom: height * 0.05 },
   scoreRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%', paddingHorizontal: 10 },
   arrowSlot: { width: 40, alignItems: 'center' },
@@ -212,5 +268,5 @@ const styles = StyleSheet.create({
   cigContainer: { marginVertical: 10 },
   footer: { width: '100%' },
   saveButton: { height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', width: '100%' },
-  saveButtonText: { color: '#FFF', fontWeight: '800', fontSize: 16, letterSpacing: 1 }
+  saveButtonText: { color: '#FFF', fontWeight: '800', fontSize: 16, letterSpacing: 1 },
 });
