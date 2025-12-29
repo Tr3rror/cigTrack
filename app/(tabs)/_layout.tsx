@@ -11,7 +11,6 @@ export default function TabLayout() {
       <Tabs.Screen name="index" />
       <Tabs.Screen name="home" />
       <Tabs.Screen name="settings" />
-      <Tabs.Screen name="modal" />
     </Tabs>
   );
 }

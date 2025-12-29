@@ -13,6 +13,11 @@ type ThemeContextType = {
   saveThemeToSlot: (slotIndex: number) => Promise<void>;
   applySlot: (slotIndex: number) => void;
   slots: (ThemeColors | null)[];
+  // New Time Format Types
+  timeFormat: '12h' | '24h';
+  toggleTimeFormat: () => void;
+  isManualMode: boolean;       
+  toggleManualMode: () => void; 
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -20,43 +25,47 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const DEFAULT_COLORS: ThemeColors = { primary: '#FF4500', bgLight: '#F8F9FA', bgDark: '#121212', accent: '#6C757D' };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const systemScheme = useColorScheme(); // 'dark' or 'light' or null
+  const systemScheme = useColorScheme();
   
-  // Start with system preference by default
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
   const [customColors, setCustomColors] = useState<ThemeColors>(DEFAULT_COLORS);
   const [slots, setSlots] = useState<(ThemeColors | null)[]>([null, null, null]);
+  const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('24h');
+  const [isManualMode, setIsManualMode] = useState(false);
 
   useEffect(() => {
     const loadPersistedData = async () => {
       try {
-        // 1. Load Custom Colors
         const savedTheme = await AsyncStorage.getItem('current_theme');
-        if (savedTheme) {
-            setCustomColors(JSON.parse(savedTheme));
-        }
+        if (savedTheme) setCustomColors(JSON.parse(savedTheme));
 
-        // 2. Load Slots
         const savedSlots = await AsyncStorage.getItem('theme_slots');
-        if (savedSlots) {
-            setSlots(JSON.parse(savedSlots));
-        }
+        if (savedSlots) setSlots(JSON.parse(savedSlots));
 
-        // 3. Load Dark Mode Preference
         const savedIsDark = await AsyncStorage.getItem('is_dark_mode');
-        if (savedIsDark !== null) {
-            // User has manually chosen a preference
-            setIsDark(JSON.parse(savedIsDark));
-        } else {
-            // No manual preference? Use system scheme
-            setIsDark(systemScheme === 'dark');
-        }
+        setIsDark(savedIsDark !== null ? JSON.parse(savedIsDark) : systemScheme === 'dark');
+
+        const savedFormat = await AsyncStorage.getItem('time_format');
+        if (savedFormat) setTimeFormat(savedFormat as '12h' | '24h');
+
+        // Load Manual Mode Preference
+        const savedManual = await AsyncStorage.getItem('is_manual_mode');
+        if (savedManual !== null) setIsManualMode(JSON.parse(savedManual));
+
       } catch (e) {
         console.error("Theme Load Error", e);
       }
     };
     loadPersistedData();
   }, [systemScheme]);
+
+  const toggleManualMode = () => {
+    setIsManualMode(prev => {
+      const newVal = !prev;
+      AsyncStorage.setItem('is_manual_mode', JSON.stringify(newVal));
+      return newVal;
+    });
+  };
 
   const toggleTheme = () => {
     setIsDark(prev => {
@@ -66,11 +75,18 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
+  const toggleTimeFormat = () => {
+    setTimeFormat(prev => {
+        const newVal = prev === '24h' ? '12h' : '24h';
+        AsyncStorage.setItem('time_format', newVal);
+        return newVal;
+    });
+  };
+
   const resetTheme = () => {
     setCustomColors(DEFAULT_COLORS);
     AsyncStorage.setItem('current_theme', JSON.stringify(DEFAULT_COLORS));
     
-    // Reset to system default
     const sysDefault = systemScheme === 'dark';
     setIsDark(sysDefault);
     AsyncStorage.removeItem('is_dark_mode');
@@ -81,8 +97,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updated = key === 'background' 
         ? { ...prev, [isDark ? 'bgDark' : 'bgLight']: color } 
         : { ...prev, [key]: color };
-      
-      // Save immediately
       AsyncStorage.setItem('current_theme', JSON.stringify(updated));
       return updated;
     });
@@ -105,6 +119,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const theme: ThemeContextType = {
     isDark, toggleTheme, resetTheme, setCustomColor, saveThemeToSlot, applySlot, slots,
+    timeFormat, toggleTimeFormat,
+    isManualMode, toggleManualMode, // Fixed formatting here
     colors: {
       background: isDark ? customColors.bgDark : customColors.bgLight,
       text: isDark ? '#FFFFFF' : '#212529',
