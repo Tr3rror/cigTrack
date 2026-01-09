@@ -1,14 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-type LogEntry = { id: string; amount: number; time: string; type: 'cig' | 'other'; manual?: boolean; };
+// 1. Update LogEntry Type
+export type LogEntry = { 
+  id: string; 
+  amount: number; 
+  time: string; 
+  type: 'cig' | 'other'; 
+  manual?: boolean;
+  comment?: string; // New field
+};
+
 type DayDetail = { cigTotal: number; otherTotal: number; logs: LogEntry[] };
 type DailyData = { [date: string]: DayDetail };
 type YearlyArchive = { [year: string]: { cigAvg: number; otherAvg: number; totalDaysRecorded: number } };
 
 type DataContextType = {
   dailyData: DailyData;
-  addFraction: (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string) => void;
+  // 2. Update function signature
+  addFraction: (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => void;
   deleteLog: (dateStr: string, logId: string) => void;
   archives: YearlyArchive;
   isLoading: boolean;
@@ -17,7 +27,6 @@ type DataContextType = {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  // Removed useTheme() here. We always save in 24h format now.
   
   const [dailyData, setDailyData] = useState<DailyData>({});
   const [archives, setArchives] = useState<YearlyArchive>({});
@@ -37,29 +46,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       let parsedArchives: YearlyArchive = storedArchives ? JSON.parse(storedArchives) : {};
 
       const currentYear = getCurrentYear();
-      const yearsInDaily = Object.keys(parsedDaily).map(date => date.split('-')[0]);
+      const yearsInDaily = [...new Set(Object.keys(parsedDaily).map(date => date.split('-')[0]))];
       const oldYears = yearsInDaily.filter(y => y !== currentYear);
 
       if (oldYears.length > 0) {
         oldYears.forEach(year => {
-          if (parsedArchives[year]) return;
+          if (!parsedArchives[year]) {
+            const daysOfYear = Object.entries(parsedDaily).filter(([date]) => date.startsWith(year));
+            const totalDays = daysOfYear.length;
 
-          const daysOfYear = Object.entries(parsedDaily).filter(([date]) => date.startsWith(year));
-          const totalDays = daysOfYear.length;
+            if (totalDays > 0) {
+              const totalCig = daysOfYear.reduce((acc, [, data]) => acc + data.cigTotal, 0);
+              const totalOther = daysOfYear.reduce((acc, [, data]) => acc + data.otherTotal, 0);
 
-          if (totalDays > 0) {
-            const totalCig = daysOfYear.reduce((acc, [, data]) => acc + data.cigTotal, 0);
-            const totalOther = daysOfYear.reduce((acc, [, data]) => acc + data.otherTotal, 0);
-
-            parsedArchives[year] = {
-              cigAvg: parseFloat((totalCig / totalDays).toFixed(2)),
-              otherAvg: parseFloat((totalOther / totalDays).toFixed(2)),
-              totalDaysRecorded: totalDays
-            };
+              parsedArchives[year] = {
+                cigAvg: parseFloat((totalCig / totalDays).toFixed(2)),
+                otherAvg: parseFloat((totalOther / totalDays).toFixed(2)),
+                totalDaysRecorded: totalDays
+              };
+            }
           }
-          daysOfYear.forEach(([date]) => delete parsedDaily[date]);
+          // Do not delete old data
         });
-        await AsyncStorage.setItem('dailyData_v3', JSON.stringify(parsedDaily));
         await AsyncStorage.setItem('yearlyArchives_v3', JSON.stringify(parsedArchives));
       }
 
@@ -68,16 +76,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     } finally { setIsLoading(false); }
   };
 
-  const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string) => {
+  // 3. Update addFraction to handle comments
+  const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => {
     const today = customDate || getTodayStr();
     const isManualAction = !!customDate;
 
     const current = dailyData[today] || { cigTotal: 0, otherTotal: 0, logs: [] };
 
     let timeString = manualTime;
-
     if (!timeString) {
-      // ALWAYS generate 24h format (HH:MM) for storage
       const now = new Date();
       const hours = now.getHours().toString().padStart(2, '0');
       const minutes = now.getMinutes().toString().padStart(2, '0');
@@ -87,9 +94,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const newLog: LogEntry = {
       id: Date.now().toString(),
       amount,
-      time: timeString, // Stored as "14:30" regardless of settings
+      time: timeString, 
       type,
-      manual: isManualAction
+      manual: isManualAction,
+      comment: comment || undefined // Store comment
     };
 
     const updatedLogs = [...current.logs, newLog];

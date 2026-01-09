@@ -20,7 +20,7 @@ interface Props {
 }
 
 export const ColorPickerModal = ({ label, currentColor, onSelect, labelColor }: Props) => {
-  const { colors } = useTheme(); // Access current theme colors
+  const { colors } = useTheme(); 
   const [modalVisible, setModalVisible] = useState(false);
   const [tempColor, setTempColor] = useState(currentColor);
 
