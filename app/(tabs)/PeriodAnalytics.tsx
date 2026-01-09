@@ -139,7 +139,7 @@ export default function PeriodAnalytics() {
                   <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: '100%' }]} />
                 </View>
                 <Text style={[styles.peakSub, { color: colors.accent }]}>
-                  In questo periodo hai {viewMode === 'cig' ? 'fumato' : 'registrato'} {stats.peakVal.toFixed(1)} unità in questa fascia.
+                  In questo periodo hai {viewMode === 'cig' ? 'fumato' : 'registrato'} {stats.peakVal.toFixed(1)} sigarette in questa fascia oaria.
                 </Text>
               </View>
             </View>

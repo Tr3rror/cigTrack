@@ -27,8 +27,7 @@ export default function Settings() {
     toggleComments,
     longCigsEnabled,
     toggleLongCigs,
-    showPeriod,
-    toggleShowPeriod
+    showPeriod
   } = useTheme();
 
   const router = useRouter();
@@ -141,20 +140,6 @@ export default function Settings() {
             <Switch
               value={longCigsEnabled}
               onValueChange={toggleLongCigs}
-              trackColor={{ false: '#767577', true: colors.primary }}
-              thumbColor={'#f4f3f4'}
-            />
-          </View>
-
-          {/* Show Period Switch */}
-          <View style={[styles.prefRow, { backgroundColor: colors.card, marginBottom: 12 }]}>
-            <View>
-              <Text style={[styles.prefLabel, { color: colors.text }]}>Mostra Periodo Home</Text>
-              <Text style={{ color: colors.accent, fontSize: 10 }}>Analisi fasce orarie ultimi 7gg</Text>
-            </View>
-            <Switch
-              value={showPeriod}
-              onValueChange={toggleShowPeriod}
               trackColor={{ false: '#767577', true: colors.primary }}
               thumbColor={'#f4f3f4'}
             />
