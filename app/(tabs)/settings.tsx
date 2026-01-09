@@ -23,7 +23,6 @@ export default function Settings() {
     toggleManualMode,
     statsPrefs,
     toggleStat,
-    // New Props from ThemeContext (Must be added to Context file)
     commentsEnabled,
     toggleComments,
     longCigsEnabled,
@@ -110,6 +109,14 @@ export default function Settings() {
         {/* Preferences Section */}
         <View style={styles.prefsSection}>
           <Text style={[styles.sectionTitle, { color: colors.accent }]}>Funzionalità</Text>
+
+        {/* Format Hours switch */}
+          <View style={[styles.prefRow, { backgroundColor: colors.card, marginBottom: 12 }]}>
+            <Text style={[styles.label, { color: colors.text }]}>Formato Orario (Display)</Text>
+            <TouchableOpacity onPress={toggleTimeFormat} style={[styles.toggleBtn, { backgroundColor: colors.primary }]}>
+              <Text style={styles.toggleBtnText}>{timeFormat === '24h' ? '24H' : '12H'}</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Comments Switch */}
           <View style={[styles.prefRow, { backgroundColor: colors.card, marginBottom: 12 }]}>
@@ -226,4 +233,8 @@ const styles = StyleSheet.create({
   slotIndicator: { width: 30, height: 30, borderRadius: 15, marginBottom: 8 },
   slotText: { fontSize: 12, fontWeight: 'bold' },
   emptyText: { fontSize: 9, opacity: 0.5 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15, borderRadius: 15 },
+  label: { fontSize: 16, fontWeight: '600' },
+  toggleBtn: { paddingHorizontal: 15, paddingVertical: 8, borderRadius: 10 },
+  toggleBtnText: { color: 'white', fontWeight: 'bold' }
 });

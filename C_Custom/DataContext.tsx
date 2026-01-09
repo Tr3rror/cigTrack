@@ -2,11 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 // 1. Update LogEntry Type
-export type LogEntry = { 
-  id: string; 
-  amount: number; 
-  time: string; 
-  type: 'cig' | 'other'; 
+export type LogEntry = {
+  id: string;
+  amount: number;
+  time: string;
+  type: 'cig' | 'other';
   manual?: boolean;
   comment?: string; // New field
 };
@@ -27,7 +27,7 @@ type DataContextType = {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  
+
   const [dailyData, setDailyData] = useState<DailyData>({});
   const [archives, setArchives] = useState<YearlyArchive>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +36,47 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const getCurrentYear = () => new Date().getFullYear().toString();
 
   useEffect(() => { loadData(); }, []);
+
+  // --- start onetime ---
+
+  useEffect(() => {
+    const initData = async () => {
+      try {
+        const allKeys = await AsyncStorage.getAllKeys();
+
+        const logKeys = allKeys.filter(key => key.startsWith('logs_'));
+        for (const key of logKeys) {
+          const data = await AsyncStorage.getItem(key);
+          if (data) {
+            let logs = JSON.parse(data);
+            let changed = false;
+            logs = logs.map((log: any) => {
+              if (log.time.includes('AM') || log.time.includes('PM')) {
+                const [time, modifier] = log.time.split(' ');
+                let [hours, minutes] = time.split(':');
+                if (hours === '12') hours = '00';
+                if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
+                log.time = `${hours.padStart(2, '0')}:${minutes}`;
+                changed = true;
+              }
+              return log;
+            });
+            if (changed) await AsyncStorage.setItem(key, JSON.stringify(logs));
+          }
+        }
+
+        const storedData: any = {};
+        for (const key of logKeys) {
+          const date = key.replace('logs_', '');
+          const val = await AsyncStorage.getItem(key);
+          if (val) storedData[date] = JSON.parse(val);
+        }
+        setDailyData(storedData);
+      } catch (e) { console.error(e); }
+    };
+    initData();
+  }, []);
+  // --- end onetime ---
 
   const loadData = async () => {
     try {
@@ -66,7 +107,6 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
               };
             }
           }
-          // Do not delete old data
         });
         await AsyncStorage.setItem('yearlyArchives_v3', JSON.stringify(parsedArchives));
       }
@@ -77,43 +117,48 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   // 3. Update addFraction to handle comments
-  const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => {
-    const today = customDate || getTodayStr();
-    const isManualAction = !!customDate;
+  // ... inside DataProvider ...
 
-    const current = dailyData[today] || { cigTotal: 0, otherTotal: 0, logs: [] };
+const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => {
+  const todayStr = getTodayStr();
+  const targetDate = customDate || todayStr;
+  const isManualAction = !!customDate;
 
-    let timeString = manualTime;
-    if (!timeString) {
-      const now = new Date();
-      const hours = now.getHours().toString().padStart(2, '0');
-      const minutes = now.getMinutes().toString().padStart(2, '0');
-      timeString = `${hours}:${minutes}`;
-    }
+  // Ensure time is always saved in 24h format
+  let timeString = manualTime;
+  if (!timeString) {
+    const now = new Date();
+    timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  }
 
-    const newLog: LogEntry = {
-      id: Date.now().toString(),
-      amount,
-      time: timeString, 
-      type,
-      manual: isManualAction,
-      comment: comment || undefined // Store comment
-    };
+  const current = dailyData[targetDate] || { cigTotal: 0, otherTotal: 0, logs: [] };
 
-    const updatedLogs = [...current.logs, newLog];
-
-    const newData = {
-      ...dailyData,
-      [today]: {
-        cigTotal: type === 'cig' ? parseFloat((current.cigTotal + amount).toFixed(2)) : current.cigTotal,
-        otherTotal: type === 'other' ? parseFloat((current.otherTotal + amount).toFixed(2)) : current.otherTotal,
-        logs: updatedLogs
-      }
-    };
-
-    setDailyData(newData);
-    await AsyncStorage.setItem('dailyData_v3', JSON.stringify(newData));
+  const newLog: LogEntry = {
+    id: Date.now().toString(),
+    amount,
+    time: timeString,
+    type,
+    manual: isManualAction,
+    comment: comment || undefined
   };
+
+  // LOGIC: If manual mode AND targetDate is NOT today, add to bottom. Otherwise, add to top.
+  const updatedLogs = (isManualAction && targetDate !== todayStr) 
+    ? [...current.logs, newLog] 
+    : [newLog, ...current.logs];
+
+  const newData = {
+    ...dailyData,
+    [targetDate]: {
+      cigTotal: type === 'cig' ? parseFloat((current.cigTotal + amount).toFixed(2)) : current.cigTotal,
+      otherTotal: type === 'other' ? parseFloat((current.otherTotal + amount).toFixed(2)) : current.otherTotal,
+      logs: updatedLogs
+    }
+  };
+
+  setDailyData(newData);
+  await AsyncStorage.setItem('dailyData_v3', JSON.stringify(newData));
+};
 
   const deleteLog = async (dateStr: string, logId: string) => {
     const dayData = dailyData[dateStr];

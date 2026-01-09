@@ -2,9 +2,23 @@ import React from 'react';
 import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LogEntry } from './DataContext';
+import { useTheme } from './ThemeContext'; // Import useTheme
 
 export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }: any) => {
+  const { timeFormat } = useTheme(); // Access timeFormat
+
   if (!selectedDay) return null;
+
+  // Function to format time based on display preference
+  const formatTimeForDisplay = (time24: string) => {
+    if (timeFormat === '24h') return time24;
+    
+    let [hours, minutes] = time24.split(':').map(Number);
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    return `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  };
 
   return (
     <Modal visible={!!selectedDay} animationType="slide" transparent>
@@ -27,11 +41,13 @@ export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }
                     <View key={log.id} style={[styles.logRow, { borderBottomColor: colors.accent + '33' }]}>
                         <View style={{flex: 1}}>
                             <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                <Text style={[styles.time, { color: colors.text }]}>{log.time}</Text>
+                                {/* Applied formatTimeForDisplay here */}
+                                <Text style={[styles.time, { color: colors.text }]}>
+                                  {formatTimeForDisplay(log.time)}
+                                </Text>
                                 <Text style={[styles.amount, { color: colors.primary }]}>+{log.amount.toFixed(2)}</Text>
                                 {log.manual && <Text style={{fontSize: 9, color: colors.accent, marginLeft: 5}}>(MAN)</Text>}
                             </View>
-                            {/* Display Comment */}
                             {log.comment && (
                                 <Text style={{color: colors.accent, fontSize: 12, fontStyle: 'italic', marginTop: 2}}>
                                     "{log.comment}"

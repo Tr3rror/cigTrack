@@ -1,22 +1,44 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { DatePickerModal } from 'react-native-paper-dates';
+import { DatePickerModal, registerTranslation } from 'react-native-paper-dates';
 import { MD3DarkTheme, MD3LightTheme, Provider as PaperProvider } from 'react-native-paper';
 
 import { useData } from '@/C_Custom/DataContext';
 import { useTheme } from '@/C_Custom/ThemeContext';
 
+registerTranslation(
+  'it',
+  (() => ({
+    save: 'Salva',
+    close: 'Chiudi',
+    selectSingle: 'Seleziona data',
+    selectMultiple: 'Seleziona date',
+    selectRange: 'Seleziona intervallo',
+    typeInDate: 'Inserisci data',
+  })) as any
+);
+
+
+
+
 export default function PeriodAnalytics() {
   const { colors, isDark } = useTheme();
   const { dailyData } = useData();
   const router = useRouter();
+  const { initialMode } = useLocalSearchParams();
 
-  const [viewMode, setViewMode] = useState<'cig' | 'other'>('cig');
-  const [range, setRange] = useState<{ startDate: Date | undefined; endDate: Date | undefined }>({ startDate: undefined, endDate: undefined });
+  const [range, setRange] = useState<{ startDate: Date | undefined; endDate: Date | undefined }>({ 
+    startDate: undefined, 
+    endDate: undefined 
+  });
   const [open, setOpen] = useState(false);
+
+  const [viewMode, setViewMode] = useState<'cig' | 'other'>(
+    (initialMode as 'cig' | 'other') || 'cig'
+  );
 
   // --- Statistics Calculation ---
   const stats = useMemo(() => {
@@ -26,8 +48,8 @@ export default function PeriodAnalytics() {
     let daysWithLogs = 0;
     const buckets = { morning: 0, afternoon: 0, evening: 0, night: 0 };
     
-    const start = range.startDate.getTime();
-    const end = range.endDate.getTime();
+    const start = new Date(range.startDate).setHours(0,0,0,0);
+    const end = new Date(range.endDate).setHours(23,59,59,999);
 
     Object.entries(dailyData).forEach(([dateStr, data]) => {
       const dTime = new Date(dateStr).getTime();
@@ -36,7 +58,6 @@ export default function PeriodAnalytics() {
         total += val;
         if (val > 0) daysWithLogs++;
 
-        // Calculate Peak times within this specific range
         data.logs.forEach(log => {
           if (log.type !== viewMode) return;
           const hour = parseInt(log.time.split(':')[0], 10);
@@ -71,16 +92,19 @@ export default function PeriodAnalytics() {
     <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="close" size={28} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.text }]}>Analisi Periodo</Text>
+          <View style={{alignItems: 'center'}}>
+            <Text style={[styles.title, { color: colors.text }]}>Analisi Periodo</Text>
+            <Text style={{color: colors.primary, fontSize: 10, fontWeight: 'bold'}}>
+              {viewMode === 'cig' ? 'SIGARETTE' : 'ALTRO'}
+            </Text>
+          </View>
           <View style={{ width: 28 }} />
         </View>
 
-        {/* Range Picker Button */}
         <TouchableOpacity 
           style={[styles.rangePickerBtn, { backgroundColor: colors.primary }]} 
           onPress={() => setOpen(true)}
@@ -105,8 +129,6 @@ export default function PeriodAnalytics() {
                 </View>
               </View>
 
-              {/* Peak Card Layout */}
-              
               <View style={[styles.peakCard, { backgroundColor: colors.card }]}>
                 <View style={styles.peakHeader}>
                   <Ionicons name="flame" size={24} color="#FF4500" />
@@ -117,7 +139,7 @@ export default function PeriodAnalytics() {
                   <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: '100%' }]} />
                 </View>
                 <Text style={[styles.peakSub, { color: colors.accent }]}>
-                  In questo periodo hai fumato {stats.peakVal.toFixed(1)} unità in questa fascia.
+                  In questo periodo hai {viewMode === 'cig' ? 'fumato' : 'registrato'} {stats.peakVal.toFixed(1)} unità in questa fascia.
                 </Text>
               </View>
             </View>

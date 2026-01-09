@@ -10,6 +10,7 @@ import { useTheme } from '@/C_Custom/ThemeContext';
 import { CalendarView } from '@/C_Custom/CalendarView';
 import { LogDetailSheet } from '@/C_Custom/LogDetailSheet';
 
+
 export default function Home() {
   const { colors, statsPrefs, isDark } = useTheme();
   const { dailyData, deleteLog, archives } = useData();
@@ -28,7 +29,7 @@ export default function Home() {
   const stats = useMemo(() => {
     const today = new Date();
     const currentMonthPrefix = today.toISOString().slice(0, 7);
-    
+
     let sum7d = 0;
     for (let i = 0; i < 7; i++) {
       const d = new Date();
@@ -47,10 +48,10 @@ export default function Home() {
 
     const dayOfMonth = today.getDate();
     return {
-        sum7d, 
-        avg7d: sum7d / 7, 
-        sumMonth, 
-        avgMonth: dayOfMonth > 0 ? sumMonth / dayOfMonth : 0
+      sum7d,
+      avg7d: sum7d / 7,
+      sumMonth,
+      avgMonth: dayOfMonth > 0 ? sumMonth / dayOfMonth : 0
     };
   }, [dailyData, viewMode]);
 
@@ -65,7 +66,7 @@ export default function Home() {
     const year = viewDate.getFullYear();
     const month = viewDate.getMonth();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    return Array.from({ length: daysInMonth }, (_, i) => 
+    return Array.from({ length: daysInMonth }, (_, i) =>
       `${year}-${String(month + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
     );
   }, [viewDate]);
@@ -73,36 +74,40 @@ export default function Home() {
   return (
     <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-        
+
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={30} color={colors.text} />
           </TouchableOpacity>
-          
+
           <View style={styles.modeToggle}>
-              <TouchableOpacity 
-                onPress={() => setViewMode('cig')} 
-                style={[styles.modeBtn, viewMode === 'cig' && { backgroundColor: colors.primary }]}
-              >
-                  <Text style={[styles.modeText, { color: viewMode === 'cig' ? '#FFF' : colors.text }]}>🚬 Sigarette</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                onPress={() => setViewMode('other')} 
-                style={[styles.modeBtn, viewMode === 'other' && { backgroundColor: colors.primary }]}
-              >
-                  <Text style={[styles.modeText, { color: viewMode === 'other' ? '#FFF' : colors.text }]}>✨ Altro</Text>
-              </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setViewMode('cig')}
+              style={[styles.modeBtn, viewMode === 'cig' && { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.modeText, { color: viewMode === 'cig' ? '#FFF' : colors.text }]}>🚬 Sigarette</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setViewMode('other')}
+              style={[styles.modeBtn, viewMode === 'other' && { backgroundColor: colors.primary }]}
+            >
+              <Text style={[styles.modeText, { color: viewMode === 'other' ? '#FFF' : colors.text }]}>✨ Altro</Text>
+            </TouchableOpacity>
           </View>
           <View style={{ width: 30 }} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          
+
           {/* NAVIGATION TO PERIOD ANALYTICS */}
-          <TouchableOpacity 
-            style={[styles.analyticsLink, { backgroundColor: colors.card }]} 
-            onPress={() => router.push('/PeriodAnalytics')}
+          <TouchableOpacity
+            style={[styles.analyticsLink, { backgroundColor: colors.card }]}
+            // Pass the current viewMode to the next screen
+            onPress={() => router.push({
+              pathname: '/PeriodAnalytics',
+              params: { initialMode: viewMode }
+            })}
           >
             <View style={styles.analyticsLinkContent}>
               <View style={[styles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
@@ -118,35 +123,35 @@ export default function Home() {
 
           {/* STANDARD STATS GRID */}
           <View style={styles.statsGrid}>
-             <View style={styles.statsRow}>
-                {statsPrefs.show7dTotal && (
-                  <View style={[styles.statBox, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{stats.sum7d.toFixed(1)}</Text>
-                    <Text style={[styles.statLabel, { color: colors.accent }]}>TOT 7GG</Text>
-                  </View>
-                )}
-                {statsPrefs.show7dAvg && (
-                  <View style={[styles.statBox, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{stats.avg7d.toFixed(1)}</Text>
-                    <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA 7GG</Text>
-                  </View>
-                )}
-             </View>
-             
-             <View style={[styles.statsRow, { marginTop: 12 }]}>
-                {statsPrefs.showMonthTotal && (
-                  <View style={[styles.statBox, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{stats.sumMonth.toFixed(1)}</Text>
-                    <Text style={[styles.statLabel, { color: colors.accent }]}>TOT MESE</Text>
-                  </View>
-                )}
-                {statsPrefs.showMonthAvg && (
-                  <View style={[styles.statBox, { backgroundColor: colors.card }]}>
-                    <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgMonth.toFixed(1)}</Text>
-                    <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA MESE</Text>
-                  </View>
-                )}
-             </View>
+            <View style={styles.statsRow}>
+              {statsPrefs.show7dTotal && (
+                <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{stats.sum7d.toFixed(1)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOT 7GG</Text>
+                </View>
+              )}
+              {statsPrefs.show7dAvg && (
+                <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{stats.avg7d.toFixed(1)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA 7GG</Text>
+                </View>
+              )}
+            </View>
+
+            <View style={[styles.statsRow, { marginTop: 12 }]}>
+              {statsPrefs.showMonthTotal && (
+                <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{stats.sumMonth.toFixed(1)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOT MESE</Text>
+                </View>
+              )}
+              {statsPrefs.showMonthAvg && (
+                <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgMonth.toFixed(1)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA MESE</Text>
+                </View>
+              )}
+            </View>
           </View>
 
           {/* CALENDAR CONTROLS */}
@@ -172,12 +177,12 @@ export default function Home() {
 
         </ScrollView>
 
-        <LogDetailSheet 
-          selectedDay={selectedDay} 
-          onClose={() => setSelectedDay(null)} 
-          logs={filteredLogs} 
-          colors={colors} 
-          deleteLog={deleteLog} 
+        <LogDetailSheet
+          selectedDay={selectedDay}
+          onClose={() => setSelectedDay(null)}
+          logs={filteredLogs}
+          colors={colors}
+          deleteLog={deleteLog}
         />
       </SafeAreaView>
     </PaperProvider>
@@ -186,35 +191,35 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    paddingVertical: 15 
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 15
   },
-  modeToggle: { 
-    flexDirection: 'row', 
-    backgroundColor: '#33333315', 
-    borderRadius: 25, 
+  modeToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#33333315',
+    borderRadius: 25,
     padding: 4,
     flex: 1,
     marginHorizontal: 20
   },
-  modeBtn: { 
-    flex: 1, 
-    paddingVertical: 8, 
-    borderRadius: 20, 
-    alignItems: 'center' 
+  modeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignItems: 'center'
   },
   modeText: { fontSize: 13, fontWeight: 'bold' },
-  
+
   // Analytics Link Card
-  analyticsLink: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    padding: 16, 
-    borderRadius: 20, 
+  analyticsLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+    borderRadius: 20,
     marginVertical: 10,
     elevation: 2,
     shadowColor: '#000',
@@ -230,23 +235,23 @@ const styles = StyleSheet.create({
   // Stats Grid
   statsGrid: { marginVertical: 15 },
   statsRow: { flexDirection: 'row', gap: 12 },
-  statBox: { 
-    flex: 1, 
-    padding: 18, 
-    borderRadius: 22, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  statBox: {
+    flex: 1,
+    padding: 18,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   statValue: { fontSize: 22, fontWeight: '900', marginBottom: 4 },
   statLabel: { fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
 
   // Calendar
-  calendarHeader: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    marginTop: 25, 
-    marginBottom: 15 
+  calendarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 25,
+    marginBottom: 15
   },
   monthLabel: { fontWeight: '900', fontSize: 15, letterSpacing: 1 },
 });
