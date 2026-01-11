@@ -21,8 +21,11 @@ registerTranslation(
   })) as any
 );
 
+const { initialMode } = useLocalSearchParams();
 
-
+const [viewMode, setViewMode] = useState<'cig' | 'other'>(
+  (initialMode as 'cig' | 'other') || 'cig'
+);
 
 export default function PeriodAnalytics() {
   const { colors, isDark } = useTheme();
@@ -88,6 +91,8 @@ export default function PeriodAnalytics() {
 
   const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
 
+  
+
   return (
     <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -96,6 +101,7 @@ export default function PeriodAnalytics() {
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="close" size={28} color={colors.text} />
           </TouchableOpacity>
+
           <View style={{alignItems: 'center'}}>
             <Text style={[styles.title, { color: colors.text }]}>Analisi Periodo</Text>
             <Text style={{color: colors.primary, fontSize: 10, fontWeight: 'bold'}}>
@@ -139,7 +145,7 @@ export default function PeriodAnalytics() {
                   <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: '100%' }]} />
                 </View>
                 <Text style={[styles.peakSub, { color: colors.accent }]}>
-                  In questo periodo hai {viewMode === 'cig' ? 'fumato' : 'registrato'} {stats.peakVal.toFixed(1)} sigarette in questa fascia oaria.
+                  hai {viewMode === 'cig' ? 'fumato' : 'registrato'} una totale di {stats.peakVal.toFixed(1)}.
                 </Text>
               </View>
             </View>

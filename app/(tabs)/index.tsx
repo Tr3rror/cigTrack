@@ -24,21 +24,27 @@ const formatDisplayTime = (time24: string, format: '12h' | '24h') => {
 
 export default function Index() {
   const router = useRouter();
+
+  // ??
   const insets = useSafeAreaInsets();
+  
+  // utility
   const { colors, isDark, isManualMode, timeFormat, commentsEnabled, longCigsEnabled } = useTheme();
   const { dailyData, addFraction } = useData();
-
+  
+  // const with set
   const [mode, setMode] = useState<'cig' | 'other'>('cig');
   const [percentRemaining, setPercentRemaining] = useState(100);
   const [comment, setComment] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [visible, setVisible] = useState(false);
-
+  
+  // whidt for cigarette object and percentile in case of long
   const maxVal = longCigsEnabled ? 120 : 100;
   const dateStr = isManualMode ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
   const todayLogs = dailyData[dateStr]?.logs || [];
 
-  // --- Logic: Find nearest session by TIME (not last added) ---
+  // --- Logic: Find nearest session by TIME (not last added) ---  ?? to check
   const lastTimeLabel = useMemo(() => {
     const modeLogs = todayLogs.filter((l: any) => l.type === mode);
     if (modeLogs.length === 0) return "Nessuna sessione oggi";
@@ -61,10 +67,10 @@ export default function Index() {
     if (h !== undefined && m !== undefined) {
       customTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
-    
+
     // addFraction handles the Day check (automatic vs manual sorting)
     addFraction(percentRemaining / 100, mode, dateStr, customTime, comment);
-    
+
     // Reset state
     setComment('');
     setPercentRemaining(maxVal);
@@ -110,7 +116,7 @@ export default function Index() {
     <PaperProvider theme={paperTheme}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={[styles.mainContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
-          
+
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity onPress={() => router.push('/settings')}>
@@ -145,13 +151,13 @@ export default function Index() {
 
             {/* Main Score Display */}
             <View style={[styles.scoreCard, { backgroundColor: colors.card }]}>
-              <TouchableOpacity 
-                style={styles.scoreContent} 
+              <TouchableOpacity
+                style={styles.scoreContent}
                 onPress={() => setMode(mode === 'cig' ? 'other' : 'cig')}
               >
                 <Ionicons name="chevron-back" size={24} color={colors.primary} style={{ opacity: mode === 'other' ? 1 : 0 }} />
                 <View style={{ alignItems: 'center', flex: 1 }}>
-                  <Text style={[styles.modeTitle, { color: colors.accent }]}>{mode === 'cig' ? 'SIGARETTE' : 'ALTRO'}</Text>
+                  <Text style={[styles.modeTitle, { color: colors.accent }]}>{mode === 'cig' ? 'SIGARETTE 🚬' : 'ALTRO ✨'}</Text>
                   <Text style={[styles.mainNumber, { color: colors.text }]}>{Number(displayCount).toFixed(2)}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={24} color={colors.primary} style={{ opacity: mode === 'cig' ? 1 : 0 }} />
@@ -177,13 +183,13 @@ export default function Index() {
                 <Svg width={width * 0.85} height={60}>
                   <Rect x="0" y="0" width={width * 0.85} height={60} fill={isDark ? "#222" : "#eee"} rx={15} />
                   <Rect x="0" y="0" width={(width * 0.85) * 0.25} height={60} fill={colors.filter} rx={15} />
-                  <Rect 
-                    x={(width * 0.85) * 0.25} 
-                    y="0" 
-                    width={((width * 0.85) * 0.75) * (percentRemaining / maxVal)} 
-                    height={60} 
-                    fill={colors.primary} 
-                    rx={5} 
+                  <Rect
+                    x={(width * 0.85) * 0.25}
+                    y="0"
+                    width={((width * 0.85) * 0.75) * (percentRemaining / maxVal)}
+                    height={60}
+                    fill={colors.primary}
+                    rx={5}
                   />
                 </Svg>
               </View>
@@ -191,8 +197,8 @@ export default function Index() {
           </View>
 
           {/* Action Button */}
-          <TouchableOpacity 
-            style={[styles.mainBtn, { backgroundColor: colors.primary }]} 
+          <TouchableOpacity
+            style={[styles.mainBtn, { backgroundColor: colors.primary }]}
             onPress={handlePressButton}
           >
             <Text style={styles.mainBtnText}>REGISTRA SESSIONE</Text>

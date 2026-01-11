@@ -4,11 +4,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type ThemeColors = { primary: string; bgLight: string; bgDark: string; accent: string };
 
-type StatsPrefs = {
+export type StatsPrefs = {
   show7dTotal: boolean;
   show7dAvg: boolean;
   showMonthTotal: boolean;
   showMonthAvg: boolean;
+  showPeriod: boolean;
 };
 
 type ThemeContextType = {
@@ -25,24 +26,18 @@ type ThemeContextType = {
   toggleTimeFormat: () => void;
   isManualMode: boolean;
   toggleManualMode: () => void;
-  
-  // Stats Logic
   statsPrefs: StatsPrefs;
   toggleStat: (key: keyof StatsPrefs) => void;
-
-  // New Features
   commentsEnabled: boolean;
   toggleComments: () => void;
   longCigsEnabled: boolean;
   toggleLongCigs: () => void;
-  showPeriod: boolean;
-  toggleShowPeriod: () => void;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 const DEFAULT_COLORS: ThemeColors = { primary: '#FF4500', bgLight: '#F8F9FA', bgDark: '#121212', accent: '#6C757D' };
-const DEFAULT_STATS: StatsPrefs = { show7dTotal: false, show7dAvg: false, showMonthTotal: false, showMonthAvg: false };
+const DEFAULT_STATS: StatsPrefs = { show7dTotal: false, show7dAvg: false, showMonthTotal: false, showMonthAvg: false, showPeriod: false };
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemScheme = useColorScheme();
@@ -50,7 +45,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Initialize new states
   const [commentsEnabled, setCommentsEnabled] = useState(false);
   const [longCigsEnabled, setLongCigsEnabled] = useState(false);
-  const [showPeriod, setShowPeriod] = useState(false);
 
   const [isDark, setIsDark] = useState(systemScheme === 'dark');
   const [customColors, setCustomColors] = useState<ThemeColors>(DEFAULT_COLORS);
@@ -84,15 +78,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         const savedStats = await AsyncStorage.getItem('stats_prefs');
         if (savedStats) setStatsPrefs(JSON.parse(savedStats));
 
-        // --- LOAD NEW FEATURES ---
         const savedComments = await AsyncStorage.getItem('prefs_comments');
         if (savedComments !== null) setCommentsEnabled(JSON.parse(savedComments));
 
         const savedLongCigs = await AsyncStorage.getItem('prefs_longcigs');
         if (savedLongCigs !== null) setLongCigsEnabled(JSON.parse(savedLongCigs));
-
-        const savedPeriod = await AsyncStorage.getItem('prefs_period');
-        if (savedPeriod !== null) setShowPeriod(JSON.parse(savedPeriod));
 
       } catch (e) {
         console.error("Theme Load Error", e);
@@ -100,8 +90,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     loadPersistedData();
   }, [systemScheme]);
-
-  // --- TOGGLE FUNCTIONS WITH PERSISTENCE ---
 
   const toggleComments = () => {
     setCommentsEnabled(prev => {
@@ -115,14 +103,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLongCigsEnabled(prev => {
       const newVal = !prev;
       AsyncStorage.setItem('prefs_longcigs', JSON.stringify(newVal));
-      return newVal;
-    });
-  };
-
-  const toggleShowPeriod = () => {
-    setShowPeriod(prev => {
-      const newVal = !prev;
-      AsyncStorage.setItem('prefs_period', JSON.stringify(newVal));
       return newVal;
     });
   };
@@ -202,10 +182,20 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const theme: ThemeContextType = {
-    isDark, toggleTheme, resetTheme, setCustomColor, saveThemeToSlot, applySlot, slots, activeSlot,
-    timeFormat, toggleTimeFormat,
-    isManualMode, toggleManualMode,
-    statsPrefs, toggleStat, 
+    isDark,
+    toggleTheme,
+    resetTheme,
+    setCustomColor,
+    saveThemeToSlot,
+    applySlot,
+    slots,
+    activeSlot,
+    timeFormat,
+    toggleTimeFormat,
+    isManualMode,
+    toggleManualMode,
+    statsPrefs,
+    toggleStat,
     colors: {
       background: isDark ? customColors.bgDark : customColors.bgLight,
       text: isDark ? '#FFFFFF' : '#212529',
@@ -214,10 +204,10 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       card: isDark ? '#1E1E1E' : '#FFFFFF',
       filter: '#D2691E',
     },
-    // Export new features
-    commentsEnabled, toggleComments,
-    longCigsEnabled, toggleLongCigs,
-    showPeriod, toggleShowPeriod
+    commentsEnabled,
+    toggleComments,
+    longCigsEnabled,
+    toggleLongCigs,
   };
 
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;

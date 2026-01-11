@@ -1,64 +1,50 @@
 import React from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
+import { Modal, StyleSheet, Text, TouchableOpacity, View, ScrollView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LogEntry } from './DataContext';
-import { useTheme } from './ThemeContext'; // Import useTheme
 
 export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }: any) => {
-  const { timeFormat } = useTheme(); // Access timeFormat
-
   if (!selectedDay) return null;
 
-  // Function to format time based on display preference
-  const formatTimeForDisplay = (time24: string) => {
-    if (timeFormat === '24h') return time24;
-    
-    let [hours, minutes] = time24.split(':').map(Number);
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12; // the hour '0' should be '12'
-    return `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
-  };
-
   return (
-    <Modal visible={!!selectedDay} animationType="slide" transparent>
+    <Modal visible={!!selectedDay} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.overlay}>
+        {/* Transparent area at the top to tap and close */}
+        <TouchableOpacity style={styles.dismissArea} onPress={onClose} activeOpacity={1} />
+        
         <View style={[styles.sheet, { backgroundColor: colors.card }]}>
+          {/* Visual Slider Handle */}
+          <View style={styles.handleContainer}>
+            <View style={[styles.handle, { backgroundColor: colors.accent + '44' }]} />
+          </View>
+
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>
-               Dettagli {selectedDay.split('-')[2]}/{selectedDay.split('-')[1]}
-            </Text>
+            <View>
+              <Text style={[styles.title, { color: colors.text }]}>Dettagli Giorno</Text>
+              <Text style={[styles.dateSub, { color: colors.accent }]}>{selectedDay}</Text>
+            </View>
             <TouchableOpacity onPress={onClose}>
-              <Ionicons name="close-circle" size={30} color={colors.accent} />
+              <Ionicons name="close-circle" size={28} color={colors.accent} />
             </TouchableOpacity>
           </View>
-          
-          <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {logs.length === 0 ? (
-                <Text style={{color: colors.accent, textAlign: 'center', marginTop: 20}}>Nessun dato.</Text>
+              <Text style={[styles.emptyText, { color: colors.accent }]}>Nessuna registrazione per questa categoria.</Text>
             ) : (
-                logs.map((log: LogEntry) => (
-                    <View key={log.id} style={[styles.logRow, { borderBottomColor: colors.accent + '33' }]}>
-                        <View style={{flex: 1}}>
-                            <View style={{flexDirection: 'row', alignItems: 'center'}}>
-                                {/* Applied formatTimeForDisplay here */}
-                                <Text style={[styles.time, { color: colors.text }]}>
-                                  {formatTimeForDisplay(log.time)}
-                                </Text>
-                                <Text style={[styles.amount, { color: colors.primary }]}>+{log.amount.toFixed(2)}</Text>
-                                {log.manual && <Text style={{fontSize: 9, color: colors.accent, marginLeft: 5}}>(MAN)</Text>}
-                            </View>
-                            {log.comment && (
-                                <Text style={{color: colors.accent, fontSize: 12, fontStyle: 'italic', marginTop: 2}}>
-                                    "{log.comment}"
-                                </Text>
-                            )}
-                        </View>
-                        <TouchableOpacity onPress={() => deleteLog(selectedDay, log.id)}>
-                            <Ionicons name="trash-outline" size={20} color={'#ff4444'} />
-                        </TouchableOpacity>
-                    </View>
-                ))
+              logs.map((log: any, index: number) => (
+                <View key={index} style={[styles.logRow, { borderBottomColor: colors.background }]}>
+                  <View style={styles.logMain}>
+                    <Text style={[styles.logTime, { color: colors.text }]}>{log.time}</Text>
+                    {log.comment && <Text style={[styles.logComment, { color: colors.accent }]}>{log.comment}</Text>}
+                  </View>
+                  <View style={styles.logRight}>
+                    <Text style={[styles.logAmount, { color: colors.primary }]}>+{log.amount}</Text>
+                    <TouchableOpacity onPress={() => deleteLog(selectedDay, log.date)} style={styles.deleteBtn}>
+                      <Ionicons name="trash-outline" size={20} color="#FF4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))
             )}
           </ScrollView>
         </View>
@@ -69,10 +55,30 @@ export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog }
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
-  sheet: { height: '50%', borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  title: { fontSize: 18, fontWeight: 'bold' },
+  dismissArea: { flex: 1 },
+  sheet: { 
+    height: '60%', 
+    borderTopLeftRadius: 30, 
+    borderTopRightRadius: 30, 
+    paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 20
+  },
+  handleContainer: { width: '100%', alignItems: 'center', paddingVertical: 12 },
+  handle: { width: 40, height: 5, borderRadius: 3 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  title: { fontSize: 20, fontWeight: '900' },
+  dateSub: { fontSize: 14, fontWeight: '600' },
+  scrollContent: { paddingBottom: 40 },
   logRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15, borderBottomWidth: 1 },
-  time: { fontSize: 16, fontWeight: 'bold', marginRight: 10 },
-  amount: { fontSize: 16, fontWeight: 'bold' }
+  logMain: { flex: 1 },
+  logTime: { fontSize: 16, fontWeight: '700' },
+  logComment: { fontSize: 13, fontStyle: 'italic', marginTop: 2 },
+  logRight: { flexDirection: 'row', alignItems: 'center', gap: 15 },
+  logAmount: { fontSize: 18, fontWeight: '900' },
+  deleteBtn: { padding: 5 },
+  emptyText: { textAlign: 'center', marginTop: 30, fontSize: 14 }
 });

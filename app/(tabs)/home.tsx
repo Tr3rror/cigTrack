@@ -11,32 +11,50 @@ import { CalendarView } from '@/C_Custom/CalendarView';
 import { LogDetailSheet } from '@/C_Custom/LogDetailSheet';
 
 
+
+
+
 export default function Home() {
+
+
   const { colors, statsPrefs, isDark } = useTheme();
-  const { dailyData, deleteLog, archives } = useData();
+  const { dailyData, deleteLog } = useData();
   const router = useRouter();
 
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'cig' | 'other'>('cig');
   const [viewDate, setViewDate] = useState(new Date());
 
-  // --- Helpers ---
   const changeMonth = (offset: number) => {
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
   };
 
-  // --- Statistics Logic (Standard 7d & Month) ---
+
   const stats = useMemo(() => {
     const today = new Date();
     const currentMonthPrefix = today.toISOString().slice(0, 7);
 
     let sum7d = 0;
+    const periodBuckets = { morning: 0, afternoon: 0, evening: 0, night: 0 };
+
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dStr = d.toISOString().split('T')[0];
       const data = dailyData[dStr];
-      if (data) sum7d += viewMode === 'cig' ? data.cigTotal : data.otherTotal;
+
+      if (data) {
+        sum7d += viewMode === 'cig' ? data.cigTotal : data.otherTotal;
+
+        data.logs.forEach(log => {
+          if (log.type !== viewMode) return;
+          const hour = parseInt(log.time.split(':')[0], 10);
+          if (hour >= 0 && hour < 8) periodBuckets.night += log.amount;
+          else if (hour >= 8 && hour < 12) periodBuckets.morning += log.amount;
+          else if (hour >= 12 && hour < 17) periodBuckets.afternoon += log.amount;
+          else periodBuckets.evening += log.amount;
+        });
+      }
     }
 
     let sumMonth = 0;
@@ -46,16 +64,28 @@ export default function Home() {
       }
     });
 
+    const maxPeriodVal = Math.max(periodBuckets.morning, periodBuckets.afternoon, periodBuckets.evening, periodBuckets.night);
+    let peakPeriodLabel = "---";
+    if (maxPeriodVal > 0) {
+      if (periodBuckets.night === maxPeriodVal) peakPeriodLabel = "NOTTE (00-08)";
+      else if (periodBuckets.morning === maxPeriodVal) peakPeriodLabel = "MATTINA (08-12)";
+      else if (periodBuckets.afternoon === maxPeriodVal) peakPeriodLabel = "POMERIGGIO (12-17)";
+      else peakPeriodLabel = "SERA (17-24)";
+    }
+
     const dayOfMonth = today.getDate();
     return {
       sum7d,
       avg7d: sum7d / 7,
       sumMonth,
-      avgMonth: dayOfMonth > 0 ? sumMonth / dayOfMonth : 0
+      avgMonth: dayOfMonth > 0 ? sumMonth / dayOfMonth : 0,
+      peakPeriodLabel
     };
   }, [dailyData, viewMode]);
 
   const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
+
+
 
   const filteredLogs = useMemo(() => {
     if (!selectedDay || !dailyData[selectedDay]) return [];
@@ -71,11 +101,12 @@ export default function Home() {
     );
   }, [viewDate]);
 
+
+
   return (
     <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
 
-        {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={30} color={colors.text} />
@@ -100,10 +131,8 @@ export default function Home() {
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-          {/* NAVIGATION TO PERIOD ANALYTICS */}
           <TouchableOpacity
             style={[styles.analyticsLink, { backgroundColor: colors.card }]}
-            // Pass the current viewMode to the next screen
             onPress={() => router.push({
               pathname: '/PeriodAnalytics',
               params: { initialMode: viewMode }
@@ -121,7 +150,6 @@ export default function Home() {
             <Ionicons name="chevron-forward" size={20} color={colors.accent} />
           </TouchableOpacity>
 
-          {/* STANDARD STATS GRID */}
           <View style={styles.statsGrid}>
             <View style={styles.statsRow}>
               {statsPrefs.show7dTotal && (
@@ -152,9 +180,21 @@ export default function Home() {
                 </View>
               )}
             </View>
+
+            {statsPrefs.showPeriod && (
+              <View style={[styles.statsRow, { marginTop: 12 }]}>
+                <View style={[styles.statBox, { backgroundColor: colors.card, flexDirection: 'row', gap: 10 }]}>
+                  <Ionicons name="time-outline" size={24} color={colors.primary} />
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.statValue, { color: colors.text, fontSize: 16 }]}>{stats.peakPeriodLabel}</Text>
+                    <Text style={[styles.statLabel, { color: colors.accent }]}>PICCO 7GG</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
           </View>
 
-          {/* CALENDAR CONTROLS */}
           <View style={styles.calendarHeader}>
             <TouchableOpacity onPress={() => changeMonth(-1)}>
               <Ionicons name="chevron-back" size={24} color={colors.primary} />
@@ -189,6 +229,8 @@ export default function Home() {
   );
 }
 
+
+
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
   header: {
@@ -212,8 +254,6 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   modeText: { fontSize: 13, fontWeight: 'bold' },
-
-  // Analytics Link Card
   analyticsLink: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -231,8 +271,6 @@ const styles = StyleSheet.create({
   iconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   linkTitle: { fontSize: 15, fontWeight: '800' },
   linkSub: { fontSize: 11, marginTop: 2 },
-
-  // Stats Grid
   statsGrid: { marginVertical: 15 },
   statsRow: { flexDirection: 'row', gap: 12 },
   statBox: {
@@ -244,8 +282,6 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 22, fontWeight: '900', marginBottom: 4 },
   statLabel: { fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
-
-  // Calendar
   calendarHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -254,4 +290,5 @@ const styles = StyleSheet.create({
     marginBottom: 15
   },
   monthLabel: { fontWeight: '900', fontSize: 15, letterSpacing: 1 },
+
 });

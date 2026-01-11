@@ -1,35 +1,29 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-// 1. Update LogEntry Type
 export type LogEntry = {
-  id: string;
+  date: string;
   amount: number;
   time: string;
   type: 'cig' | 'other';
-  manual?: boolean;
-  comment?: string; // New field
+  comment?: string;
 };
-
-type DayDetail = { cigTotal: number; otherTotal: number; logs: LogEntry[] };
-type DailyData = { [date: string]: DayDetail };
-type YearlyArchive = { [year: string]: { cigAvg: number; otherAvg: number; totalDaysRecorded: number } };
 
 type DataContextType = {
   dailyData: DailyData;
-  // 2. Update function signature
   addFraction: (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => void;
   deleteLog: (dateStr: string, logId: string) => void;
-  archives: YearlyArchive;
   isLoading: boolean;
 };
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
+type DayDetail = { cigTotal: number; otherTotal: number; logs: LogEntry[] };
+type DailyData = { [date: string]: DayDetail };
+
 export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const [dailyData, setDailyData] = useState<DailyData>({});
-  const [archives, setArchives] = useState<YearlyArchive>({});
   const [isLoading, setIsLoading] = useState(true);
 
   const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -37,134 +31,91 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { loadData(); }, []);
 
-  // --- start onetime ---
-
-  useEffect(() => {
-    const initData = async () => {
-      try {
-        const allKeys = await AsyncStorage.getAllKeys();
-
-        const logKeys = allKeys.filter(key => key.startsWith('logs_'));
-        for (const key of logKeys) {
-          const data = await AsyncStorage.getItem(key);
-          if (data) {
-            let logs = JSON.parse(data);
-            let changed = false;
-            logs = logs.map((log: any) => {
-              if (log.time.includes('AM') || log.time.includes('PM')) {
-                const [time, modifier] = log.time.split(' ');
-                let [hours, minutes] = time.split(':');
-                if (hours === '12') hours = '00';
-                if (modifier === 'PM') hours = (parseInt(hours, 10) + 12).toString();
-                log.time = `${hours.padStart(2, '0')}:${minutes}`;
-                changed = true;
-              }
-              return log;
-            });
-            if (changed) await AsyncStorage.setItem(key, JSON.stringify(logs));
-          }
-        }
-
-        const storedData: any = {};
-        for (const key of logKeys) {
-          const date = key.replace('logs_', '');
-          const val = await AsyncStorage.getItem(key);
-          if (val) storedData[date] = JSON.parse(val);
-        }
-        setDailyData(storedData);
-      } catch (e) { console.error(e); }
-    };
-    initData();
-  }, []);
-  // --- end onetime ---
-
   const loadData = async () => {
     try {
       const storedDaily = await AsyncStorage.getItem('dailyData_v3');
-      const storedArchives = await AsyncStorage.getItem('yearlyArchives_v3');
-
       let parsedDaily: DailyData = storedDaily ? JSON.parse(storedDaily) : {};
-      let parsedArchives: YearlyArchive = storedArchives ? JSON.parse(storedArchives) : {};
-
-      const currentYear = getCurrentYear();
-      const yearsInDaily = [...new Set(Object.keys(parsedDaily).map(date => date.split('-')[0]))];
-      const oldYears = yearsInDaily.filter(y => y !== currentYear);
-
-      if (oldYears.length > 0) {
-        oldYears.forEach(year => {
-          if (!parsedArchives[year]) {
-            const daysOfYear = Object.entries(parsedDaily).filter(([date]) => date.startsWith(year));
-            const totalDays = daysOfYear.length;
-
-            if (totalDays > 0) {
-              const totalCig = daysOfYear.reduce((acc, [, data]) => acc + data.cigTotal, 0);
-              const totalOther = daysOfYear.reduce((acc, [, data]) => acc + data.otherTotal, 0);
-
-              parsedArchives[year] = {
-                cigAvg: parseFloat((totalCig / totalDays).toFixed(2)),
-                otherAvg: parseFloat((totalOther / totalDays).toFixed(2)),
-                totalDaysRecorded: totalDays
-              };
-            }
+      
+      // start
+      let hasChanges = false;
+      Object.keys(parsedDaily).forEach(dateKey => {
+        parsedDaily[dateKey].logs = parsedDaily[dateKey].logs.map(log => {
+          if ((log as any).manual !== undefined) {
+            const { manual, ...rest } = log as any; 
+            hasChanges = true;
+            return rest; 
           }
+          return log;
         });
-        await AsyncStorage.setItem('yearlyArchives_v3', JSON.stringify(parsedArchives));
+      });
+      if (hasChanges) {
+        await AsyncStorage.setItem('dailyData_v3', JSON.stringify(parsedDaily));
       }
+      // end
 
       setDailyData(parsedDaily);
-      setArchives(parsedArchives);
     } finally { setIsLoading(false); }
   };
 
-  // 3. Update addFraction to handle comments
-  // ... inside DataProvider ...
+  const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => {
+    const todayStr = getTodayStr();
+    const targetDate = customDate || todayStr; 
+    
+    const isManualAction = !!customDate; 
+    const isManualPast = isManualAction && targetDate !== todayStr;
 
-const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: string, manualTime?: string, comment?: string) => {
-  const todayStr = getTodayStr();
-  const targetDate = customDate || todayStr;
-  const isManualAction = !!customDate;
-
-  // Ensure time is always saved in 24h format
-  let timeString = manualTime;
-  if (!timeString) {
-    const now = new Date();
-    timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-  }
-
-  const current = dailyData[targetDate] || { cigTotal: 0, otherTotal: 0, logs: [] };
-
-  const newLog: LogEntry = {
-    id: Date.now().toString(),
-    amount,
-    time: timeString,
-    type,
-    manual: isManualAction,
-    comment: comment || undefined
-  };
-
-  // LOGIC: If manual mode AND targetDate is NOT today, add to bottom. Otherwise, add to top.
-  const updatedLogs = (isManualAction && targetDate !== todayStr) 
-    ? [...current.logs, newLog] 
-    : [newLog, ...current.logs];
-
-  const newData = {
-    ...dailyData,
-    [targetDate]: {
-      cigTotal: type === 'cig' ? parseFloat((current.cigTotal + amount).toFixed(2)) : current.cigTotal,
-      otherTotal: type === 'other' ? parseFloat((current.otherTotal + amount).toFixed(2)) : current.otherTotal,
-      logs: updatedLogs
+    let timeString = manualTime;
+    if (!timeString) {
+      const now = new Date();
+      timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     }
-  };
 
-  setDailyData(newData);
-  await AsyncStorage.setItem('dailyData_v3', JSON.stringify(newData));
-};
+    const current = dailyData[targetDate] || { cigTotal: 0, otherTotal: 0, logs: [] };
+
+    const newLog: LogEntry = {
+      date: Date.now().toString(),
+      amount,
+      time: timeString,
+      type,
+      comment: comment || undefined
+    };
+
+    const combinedLogs = [...current.logs, newLog];
+
+    let updatedLogs: LogEntry[];
+
+    if (isManualPast) {
+      updatedLogs = combinedLogs.sort((a, b) => {
+        const getAdjustedMinutes = (timeStr: string) => {
+          const [h, m] = timeStr.split(':').map(Number);
+          const adjustedHour = h < 8 ? h + 24 : h; 
+          return adjustedHour * 60 + m;
+        };
+
+        return getAdjustedMinutes(a.time) - getAdjustedMinutes(b.time);
+      });
+    } else {
+      updatedLogs = combinedLogs.sort((a, b) => a.time.localeCompare(b.time));
+    }
+
+    const newData = {
+      ...dailyData,
+      [targetDate]: {
+        cigTotal: type === 'cig' ? parseFloat((current.cigTotal + amount).toFixed(2)) : current.cigTotal,
+        otherTotal: type === 'other' ? parseFloat((current.otherTotal + amount).toFixed(2)) : current.otherTotal,
+        logs: updatedLogs
+      }
+    };
+
+    setDailyData(newData);
+    await AsyncStorage.setItem('dailyData_v3', JSON.stringify(newData));
+  };
 
   const deleteLog = async (dateStr: string, logId: string) => {
     const dayData = dailyData[dateStr];
     if (!dayData) return;
 
-    const filteredLogs = dayData.logs.filter(l => l.id !== logId);
+    const filteredLogs = dayData.logs.filter(l => l.date !== logId);
 
     const newCigTotal = filteredLogs.filter(l => l.type === 'cig').reduce((acc, curr) => acc + curr.amount, 0);
     const newOtherTotal = filteredLogs.filter(l => l.type === 'other').reduce((acc, curr) => acc + curr.amount, 0);
@@ -183,7 +134,7 @@ const addFraction = async (amount: number, type: 'cig' | 'other', customDate?: s
   };
 
   return (
-    <DataContext.Provider value={{ dailyData, addFraction, deleteLog, archives, isLoading }}>
+    <DataContext.Provider value={{ dailyData, addFraction, deleteLog, isLoading }}>
       {children}
     </DataContext.Provider>
   );
