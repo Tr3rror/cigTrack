@@ -11,13 +11,9 @@ import { CalendarView } from '@/C_Custom/CalendarView';
 import { LogDetailSheet } from '@/C_Custom/LogDetailSheet';
 
 
-
-
-
 export default function Home() {
 
-
-  const { colors, statsPrefs, isDark } = useTheme();
+  const { colors, statsPrefs, isDark, timeFormat } = useTheme();
   const { dailyData, deleteLog } = useData();
   const router = useRouter();
 
@@ -29,63 +25,59 @@ export default function Home() {
     setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + offset, 1));
   };
 
+  const formatDisplayTime = (time24: string, format: '12h' | '24h') => {
+    if (format === '24h') return time24;
+    const [h, m] = time24.split(':').map(Number);
+    const suffix = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
+  };
 
+  // Optimized Stats Logic in Home.tsx
+  // Inside Home.tsx -> stats useMemo
   const stats = useMemo(() => {
     const today = new Date();
     const currentMonthPrefix = today.toISOString().slice(0, 7);
-
-    let sum7d = 0;
     const periodBuckets = { morning: 0, afternoon: 0, evening: 0, night: 0 };
+    let sum7d = 0;
+    let sumMonth = 0;
 
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const dStr = d.toISOString().split('T')[0];
-      const data = dailyData[dStr];
+    Object.entries(dailyData).forEach(([date, data]) => {
+      const value = viewMode === 'cig' ? data.cigTotal : data.otherTotal;
+      if (date.startsWith(currentMonthPrefix)) sumMonth += value;
 
-      if (data) {
-        sum7d += viewMode === 'cig' ? data.cigTotal : data.otherTotal;
-
+      const diffDays = Math.floor((today.getTime() - new Date(date).getTime()) / (1000 * 3600 * 24));
+      if (diffDays >= 0 && diffDays < 7) {
+        sum7d += value;
         data.logs.forEach(log => {
           if (log.type !== viewMode) return;
           const hour = parseInt(log.time.split(':')[0], 10);
-          if (hour >= 0 && hour < 8) periodBuckets.night += log.amount;
-          else if (hour >= 8 && hour < 12) periodBuckets.morning += log.amount;
-          else if (hour >= 12 && hour < 17) periodBuckets.afternoon += log.amount;
+          if (hour < 8) periodBuckets.night += log.amount;
+          else if (hour < 12) periodBuckets.morning += log.amount;
+          else if (hour < 17) periodBuckets.afternoon += log.amount;
           else periodBuckets.evening += log.amount;
         });
       }
-    }
-
-    let sumMonth = 0;
-    Object.keys(dailyData).forEach(key => {
-      if (key.startsWith(currentMonthPrefix)) {
-        sumMonth += viewMode === 'cig' ? dailyData[key].cigTotal : dailyData[key].otherTotal;
-      }
     });
 
-    const maxPeriodVal = Math.max(periodBuckets.morning, periodBuckets.afternoon, periodBuckets.evening, periodBuckets.night);
-    let peakPeriodLabel = "---";
-    if (maxPeriodVal > 0) {
-      if (periodBuckets.night === maxPeriodVal) peakPeriodLabel = "NOTTE (00-08)";
-      else if (periodBuckets.morning === maxPeriodVal) peakPeriodLabel = "MATTINA (08-12)";
-      else if (periodBuckets.afternoon === maxPeriodVal) peakPeriodLabel = "POMERIGGIO (12-17)";
-      else peakPeriodLabel = "SERA (17-24)";
-    }
+    const peakKey = Object.entries(periodBuckets).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+    const peakLabels: Record<string, string> = {
+      night: `NOTTE (${formatDisplayTime('00:00', timeFormat)})`,
+      morning: `MATTINA (${formatDisplayTime('08:00', timeFormat)})`,
+      afternoon: `POMERIGGIO (${formatDisplayTime('12:00', timeFormat)})`,
+      evening: `SERA (${formatDisplayTime('17:00', timeFormat)})`
+    };
 
-    const dayOfMonth = today.getDate();
     return {
       sum7d,
       avg7d: sum7d / 7,
       sumMonth,
-      avgMonth: dayOfMonth > 0 ? sumMonth / dayOfMonth : 0,
-      peakPeriodLabel
+      avgMonth: today.getDate() > 0 ? sumMonth / today.getDate() : 0,
+      peakPeriodLabel: sum7d > 0 ? peakLabels[peakKey] : "---"
     };
-  }, [dailyData, viewMode]);
+  }, [dailyData, viewMode, timeFormat]);
 
   const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
-
-
 
   const filteredLogs = useMemo(() => {
     if (!selectedDay || !dailyData[selectedDay]) return [];

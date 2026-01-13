@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -9,150 +9,163 @@ import { MD3DarkTheme, MD3LightTheme, Provider as PaperProvider } from 'react-na
 import { useData } from '@/C_Custom/DataContext';
 import { useTheme } from '@/C_Custom/ThemeContext';
 
-registerTranslation(
-  'it',
-  (() => ({
-    save: 'Salva',
-    close: 'Chiudi',
-    selectSingle: 'Seleziona data',
-    selectMultiple: 'Seleziona date',
-    selectRange: 'Seleziona intervallo',
-    typeInDate: 'Inserisci data',
-  })) as any
-);
+registerTranslation('it', {
+  save: 'Salva',
+  close: 'Chiudi',
+  selectSingle: 'Data',
+  selectMultiple: 'Date',
+  selectRange: 'Intervallo',
+  typeInDate: 'Inserisci data',
+} as any);
 
-const { initialMode } = useLocalSearchParams();
-
-const [viewMode, setViewMode] = useState<'cig' | 'other'>(
-  (initialMode as 'cig' | 'other') || 'cig'
-);
+const formatTime = (t24: string, fmt: '12h' | '24h') => {
+  if (fmt === '24h') return t24;
+  const [h, m] = t24.split(':').map(Number);
+  return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
 
 export default function PeriodAnalytics() {
-  const { colors, isDark } = useTheme();
+  const { colors, isDark, timeFormat } = useTheme();
   const { dailyData } = useData();
   const router = useRouter();
-  const { initialMode } = useLocalSearchParams();
+  const params = useLocalSearchParams();
 
+  const currentParamMode = (params.initialMode as 'cig' | 'other') || 'cig';
   const [range, setRange] = useState<{ startDate: Date | undefined; endDate: Date | undefined }>({ 
-    startDate: undefined, 
-    endDate: undefined 
+    startDate: undefined, endDate: undefined 
   });
   const [open, setOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'cig' | 'other'>(currentParamMode);
 
-  const [viewMode, setViewMode] = useState<'cig' | 'other'>(
-    (initialMode as 'cig' | 'other') || 'cig'
-  );
+  useEffect(() => {
+    if (currentParamMode !== viewMode) {
+      setViewMode(currentParamMode);
+      setRange({ startDate: undefined, endDate: undefined });
+    }
+  }, [currentParamMode]);
 
-  // --- Statistics Calculation ---
   const stats = useMemo(() => {
     if (!range.startDate || !range.endDate) return null;
     
     let total = 0;
-    let daysWithLogs = 0;
     const buckets = { morning: 0, afternoon: 0, evening: 0, night: 0 };
-    
     const start = new Date(range.startDate).setHours(0,0,0,0);
     const end = new Date(range.endDate).setHours(23,59,59,999);
+
+    const diffTime = Math.abs(end - start);
+    const totalDaysInRange = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
 
     Object.entries(dailyData).forEach(([dateStr, data]) => {
       const dTime = new Date(dateStr).getTime();
       if (dTime >= start && dTime <= end) {
-        const val = viewMode === 'cig' ? data.cigTotal : data.otherTotal;
-        total += val;
-        if (val > 0) daysWithLogs++;
-
+        total += viewMode === 'cig' ? data.cigTotal : data.otherTotal;
         data.logs.forEach(log => {
           if (log.type !== viewMode) return;
           const hour = parseInt(log.time.split(':')[0], 10);
-          if (hour >= 0 && hour < 8) buckets.night += log.amount;
-          else if (hour >= 8 && hour < 12) buckets.morning += log.amount;
-          else if (hour >= 12 && hour < 17) buckets.afternoon += log.amount;
+          if (hour < 8) buckets.night += log.amount;
+          else if (hour < 12) buckets.morning += log.amount;
+          else if (hour < 17) buckets.afternoon += log.amount;
           else buckets.evening += log.amount;
         });
       }
     });
 
     const maxVal = Math.max(buckets.morning, buckets.afternoon, buckets.evening, buckets.night);
+    const labels = {
+      night: `NOTTE (${formatTime('00:00', timeFormat)}-${formatTime('08:00', timeFormat)})`,
+      morning: `MATTINA (${formatTime('08:00', timeFormat)}-${formatTime('12:00', timeFormat)})`,
+      afternoon: `POMERIGGIO (${formatTime('12:00', timeFormat)}-${formatTime('17:00', timeFormat)})`,
+      evening: `SERA (${formatTime('17:00', timeFormat)}-${formatTime('23:59', timeFormat)})`
+    };
+
     let peakLabel = "Nessun dato";
     if (maxVal > 0) {
-      if (buckets.night === maxVal) peakLabel = "NOTTE FONDA (00-08)";
-      else if (buckets.morning === maxVal) peakLabel = "MATTINA (08-12)";
-      else if (buckets.afternoon === maxVal) peakLabel = "POMERIGGIO (12-17)";
-      else peakLabel = "SERA (17-24)";
+      const topKey = Object.entries(buckets).reduce((a, b) => a[1] > b[1] ? a : b)[0];
+      peakLabel = labels[topKey as keyof typeof labels];
     }
 
-    return { total, avg: daysWithLogs ? total / daysWithLogs : 0, peakLabel, peakVal: maxVal };
-  }, [dailyData, viewMode, range]);
+    return { total, avg: total / totalDaysInRange, peakLabel };
+  }, [dailyData, viewMode, range, timeFormat]);
 
-  const onConfirm = useCallback(({ startDate, endDate }: any) => {
-    setOpen(false);
-    setRange({ startDate, endDate });
-  }, []);
-
-  const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
-
-  
+  // FIX: This merged theme ensures the modal background (surface) is solid
+  const customPaperTheme = {
+    ...(isDark ? MD3DarkTheme : MD3LightTheme),
+    colors: {
+      ...(isDark ? MD3DarkTheme.colors : MD3LightTheme.colors),
+      primary: colors.primary,
+      surface: isDark ? '#1A1A1A' : '#FFFFFF', // Fixes transparent modal background
+      onSurface: colors.text,
+      surfaceVariant: isDark ? '#333333' : '#F0F0F0',
+    },
+  };
 
   return (
-    <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
+    <PaperProvider theme={customPaperTheme}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="close" size={28} color={colors.text} />
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <Ionicons name="chevron-back" size={28} color={colors.text} />
           </TouchableOpacity>
-
           <View style={{alignItems: 'center'}}>
             <Text style={[styles.title, { color: colors.text }]}>Analisi Periodo</Text>
-            <Text style={{color: colors.primary, fontSize: 10, fontWeight: 'bold'}}>
+            <Text style={{color: colors.primary, fontSize: 11, fontWeight: 'bold', letterSpacing: 1}}>
               {viewMode === 'cig' ? 'SIGARETTE' : 'ALTRO'}
             </Text>
           </View>
-          <View style={{ width: 28 }} />
+          <View style={styles.headerBtn} />
         </View>
 
         <TouchableOpacity 
-          style={[styles.rangePickerBtn, { backgroundColor: colors.primary }]} 
+          activeOpacity={0.8}
+          style={[styles.rangePickerBtn, { backgroundColor: colors.card, borderColor: colors.primary + '44', borderWidth: 1 }]} 
           onPress={() => setOpen(true)}
         >
-          <Ionicons name="calendar" size={20} color="white" />
-          <Text style={styles.rangePickerText}>
-            {range.startDate ? "MODIFICA PERIODO" : "SCEGLI IL PERIODO"}
+          <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+          <Text style={[styles.rangePickerText, { color: colors.text }]}>
+            {range.startDate && range.endDate 
+              ? `${range.startDate.toLocaleDateString('it-IT')} - ${range.endDate.toLocaleDateString('it-IT')}`
+              : "SELEZIONA DATE"}
           </Text>
+          <Ionicons name="chevron-down" size={16} color={colors.accent} />
         </TouchableOpacity>
 
-        <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+        <ScrollView contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
           {stats ? (
             <View style={styles.resultsContainer}>
               <View style={styles.summaryRow}>
                 <View style={[styles.mainStat, { backgroundColor: colors.card }]}>
-                  <Text style={[styles.statValue, { color: colors.primary }]}>{stats.total.toFixed(1)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOTALE UNITÀ</Text>
+                  <Text style={[styles.statValue, { color: colors.primary }]}>{stats.total.toFixed(0)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOTALE</Text>
                 </View>
                 <View style={[styles.mainStat, { backgroundColor: colors.card }]}>
-                  <Text style={[styles.statValue, { color: colors.primary }]}>{stats.avg.toFixed(2)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA GIORNALIERA</Text>
+                  <Text style={[styles.statValue, { color: colors.primary }]}>{stats.avg.toFixed(1)}</Text>
+                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA / GG</Text>
                 </View>
               </View>
 
               <View style={[styles.peakCard, { backgroundColor: colors.card }]}>
                 <View style={styles.peakHeader}>
-                  <Ionicons name="flame" size={24} color="#FF4500" />
+                  <View style={[styles.iconCircle, { backgroundColor: '#FF450022' }]}>
+                    <Ionicons name="flame" size={20} color="#FF4500" />
+                  </View>
                   <Text style={[styles.peakTitle, { color: colors.text }]}>Fascia di Picco</Text>
                 </View>
-                <Text style={[styles.peakTime, { color: colors.primary }]}>{stats.peakLabel}</Text>
+                <Text style={[styles.peakTime, { color: colors.text }]}>{stats.peakLabel}</Text>
                 <View style={styles.progressBarBg}>
                   <View style={[styles.progressBarFill, { backgroundColor: colors.primary, width: '100%' }]} />
                 </View>
-                <Text style={[styles.peakSub, { color: colors.accent }]}>
-                  hai {viewMode === 'cig' ? 'fumato' : 'registrato'} una totale di {stats.peakVal.toFixed(1)}.
-                </Text>
               </View>
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <Ionicons name="analytics" size={80} color={colors.accent + '44'} />
-              <Text style={[styles.emptyText, { color: colors.accent }]}>Seleziona un intervallo di date per visualizzare le statistiche avanzate.</Text>
+              <View style={[styles.bigIconCircle, { backgroundColor: colors.card }]}>
+                <Ionicons name="analytics-outline" size={60} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>Nessun dato</Text>
+              <Text style={[styles.emptyText, { color: colors.accent }]}>
+                Scegli un intervallo di tempo per visualizzare le statistiche.
+              </Text>
             </View>
           )}
         </ScrollView>
@@ -164,7 +177,7 @@ export default function PeriodAnalytics() {
           onDismiss={() => setOpen(false)}
           startDate={range.startDate}
           endDate={range.endDate}
-          onConfirm={onConfirm}
+          onConfirm={(p) => { setOpen(false); setRange(p); }}
         />
       </SafeAreaView>
     </PaperProvider>
@@ -173,31 +186,38 @@ export default function PeriodAnalytics() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 60 },
-  title: { fontSize: 18, fontWeight: '900', letterSpacing: 1 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 70 },
+  headerBtn: { width: 40, alignItems: 'center' },
+  title: { fontSize: 20, fontWeight: '900' },
   rangePickerBtn: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    justifyContent: 'center', 
-    height: 55, 
-    borderRadius: 16, 
+    paddingHorizontal: 20,
+    height: 60, 
+    borderRadius: 20, 
     marginVertical: 20, 
-    gap: 10,
-    elevation: 4
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3
   },
-  rangePickerText: { color: 'white', fontWeight: '900', letterSpacing: 1 },
-  resultsContainer: { gap: 15 },
-  summaryRow: { flexDirection: 'row', gap: 15 },
-  mainStat: { flex: 1, padding: 25, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-  statValue: { fontSize: 28, fontWeight: '900' },
-  statLabel: { fontSize: 10, fontWeight: 'bold', marginTop: 5 },
-  peakCard: { padding: 25, borderRadius: 24, gap: 10 },
-  peakHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  peakTitle: { fontSize: 16, fontWeight: 'bold' },
-  peakTime: { fontSize: 22, fontWeight: '900' },
-  progressBarBg: { height: 8, width: '100%', backgroundColor: '#33333333', borderRadius: 4, overflow: 'hidden' },
+  rangePickerText: { flex: 1, fontWeight: '700', fontSize: 14 },
+  resultsContainer: { gap: 16 },
+  summaryRow: { flexDirection: 'row', gap: 16 },
+  mainStat: { flex: 1, padding: 24, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 32, fontWeight: '900' },
+  statLabel: { fontSize: 11, fontWeight: 'bold', marginTop: 4, opacity: 0.8 },
+  peakCard: { padding: 24, borderRadius: 28, gap: 12 },
+  peakHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  iconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  peakTitle: { fontSize: 16, fontWeight: '800' },
+  peakTime: { fontSize: 18, fontWeight: '700', marginLeft: 4 },
+  progressBarBg: { height: 6, width: '100%', backgroundColor: '#33333322', borderRadius: 3, overflow: 'hidden', marginTop: 4 },
   progressBarFill: { height: '100%' },
-  peakSub: { fontSize: 12, lineHeight: 18 },
-  emptyState: { alignItems: 'center', marginTop: 100, paddingHorizontal: 40 },
-  emptyText: { textAlign: 'center', marginTop: 20, lineHeight: 22 }
+  emptyState: { alignItems: 'center', marginTop: 80, paddingHorizontal: 40 },
+  bigIconCircle: { width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', marginBottom: 20 },
+  emptyTitle: { fontSize: 22, fontWeight: '900', marginBottom: 8 },
+  emptyText: { textAlign: 'center', fontSize: 15, lineHeight: 22, opacity: 0.7 }
 });
