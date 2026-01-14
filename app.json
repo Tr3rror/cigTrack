@@ -2,7 +2,7 @@
   "expo": {
     "name": "CigTrak",
     "slug": "cigarett",
-    "version": "2.0.0",
+    "version": "2.5.0",
     "orientation": "portrait",
     "icon": "./assets/cig_icon/icon.png",
     "scheme": "cigarett",
