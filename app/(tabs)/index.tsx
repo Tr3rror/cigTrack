@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { Dimensions, StyleSheet, Text, TouchableOpacity, View, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Rect } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { TimePickerModal } from 'react-native-paper-dates';
@@ -27,26 +27,39 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
 
-  const { colors, isDark, isManualMode, timeFormat, commentsEnabled, language } = useTheme();
+  const { colors, isDark, isManualMode, timeFormat, commentsEnabled, language, longCigsEnabled } = useTheme();
   const { dailyData, addFraction } = useData();
+
+  // 1. Dynamic Max Value (100% or 120%)
+  const MAX_VAL = longCigsEnabled ? 120 : 100;
 
   const [mode, setMode] = useState<'cig' | 'other'>('cig');
   const [comment, setComment] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [visible, setVisible] = useState(false);
-  const [fillerPos, setFillerPos] = useState(100); 
+
+  // 2. State "amountRemaining" (The visual filled part)
+  // Initial state: Full cigarette (Remaining = MAX_VAL)
+  const [amountRemaining, setAmountRemaining] = useState(MAX_VAL); 
+
+  // Reset when settings change
+  useEffect(() => {
+    setAmountRemaining(MAX_VAL);
+  }, [longCigsEnabled, MAX_VAL]);
 
   const cigWidth = width * 0.85;
   const filterWidth = cigWidth * 0.25;
   const tobaccoWidth = cigWidth - filterWidth;
 
-  const percentRemaining = useMemo(() => {
-    if (fillerPos >= 100 || fillerPos <= 0) return 100;
-    return 100 - fillerPos;
-  }, [fillerPos]);
-
   const dateStr = isManualMode ? selectedDate.toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
   const todayLogs = dailyData[dateStr]?.logs || [];
+
+  // Calculate "Amount Smoked" for display or logic
+  // If Remaining is 120 (Full), Smoked is 0.
+  // If Remaining is 0 (Filter), Smoked is 120.
+  let amountSmoked = useMemo(() => {
+    return Math.max(0, MAX_VAL - amountRemaining);
+  }, [amountRemaining, MAX_VAL]);
 
   const lastTimeLabel = useMemo(() => {
     const modeLogs = todayLogs.filter((l: any) => l.type === mode);
@@ -66,17 +79,36 @@ export default function Index() {
     if (h !== undefined && m !== undefined) {
       customTime = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
     }
-    addFraction(percentRemaining / 100, mode, dateStr, customTime, comment);
-    setComment('');
-    setFillerPos(100); 
-  }, [percentRemaining, mode, dateStr, comment, addFraction]);
+    
+    // Logic: We save the amount smoked. 
+    // Normalized to 1.0 = 100%. 1.2 = 120%.
+    const valueToLog = amountSmoked / 100;
 
+    // Only log if something was smoked (> 0)
+    if (valueToLog > 0) {
+      addFraction(valueToLog, mode, dateStr, customTime, comment);
+    }
+    
+    setComment('');
+    // Reset to Full after logging
+    setAmountRemaining(MAX_VAL); 
+  }, [amountSmoked, mode, dateStr, comment, addFraction, MAX_VAL]);
+
+  // 3. Slider Interaction Logic
   const updateFillerFromX = (locationX: number) => {
     const relativeX = locationX - filterWidth;
-    let newPos = Math.round((relativeX / tobaccoWidth) * 100);
-    if (newPos > 100) newPos = 100;
-    if (newPos < 0) newPos = 0;
-    setFillerPos(newPos);
+    
+    // Map X position to Percentage (0.0 to 1.0) of tobacco length
+    let ratio = relativeX / tobaccoWidth;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+
+    // Map Ratio to Value (0 to MAX_VAL)
+    // Left (Filter) -> ratio 0 -> Empty Cig (Remaining = 0)
+    // Right (Tip) -> ratio 1 -> Full Cig (Remaining = MAX_VAL)
+    const newRemaining = Math.round(ratio * MAX_VAL);
+    
+    setAmountRemaining(newRemaining);
   };
 
   const handleTouch = (evt: any) => updateFillerFromX(evt.nativeEvent.locationX);
@@ -104,11 +136,12 @@ export default function Index() {
   }), [isDark, colors]);
 
   const displayCount = dailyData[dateStr]?.[mode === 'cig' ? 'cigTotal' : 'otherTotal'] || 0;
-  const visualFillWidth = (fillerPos / 100) * tobaccoWidth;
+  
+  const visualFillWidth = (amountRemaining / MAX_VAL) * tobaccoWidth;
 
   return (
     <PaperProvider theme={paperTheme}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+      {/*<KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>*/}
         <View style={[styles.mainContainer, { backgroundColor: colors.background, paddingTop: insets.top, paddingBottom: insets.bottom + 20 }]}>
 
           <View style={styles.header}>
@@ -163,11 +196,18 @@ export default function Index() {
             )}
 
             <View style={styles.sliderArea}>
-              <Text style={[styles.sliderValue, { color: colors.text }]}>{percentRemaining}%</Text>
+              {/* Shows how much will be ADDED (Smoked) */}
+              <Text style={[styles.sliderValue, { color: colors.text }]}>{amountSmoked == 0 ? amountSmoked = MAX_VAL : amountSmoked}%</Text>
+              
               <View style={styles.svgContainer} onStartShouldSetResponder={() => true} onMoveShouldSetResponder={() => true} onResponderGrant={handleTouch} onResponderMove={handleTouch}>
                 <Svg width={cigWidth} height={60}>
+                  {/* Gray Background (Empty space / Ash) */}
                   <Rect x="0" y="0" width={cigWidth} height={60} fill={isDark ? "#333" : "#e0e0e0"} rx={15} />
+                  
+                  {/* Tobacco Fill - Anchored to Filter, width matches click position */}
                   <Rect x={filterWidth} y="0" width={visualFillWidth} height={60} fill={colors.primary} />
+                  
+                  {/* Filter - Always on left */}
                   <Rect x="0" y="0" width={filterWidth} height={60} fill={colors.filter || '#E1A95F'} rx={15} />
                   <Rect x={filterWidth - 1} y="0" width={2} height={60} fill="rgba(0,0,0,0.1)" />
                 </Svg>
@@ -181,7 +221,7 @@ export default function Index() {
 
           <TimePickerModal visible={visible} onDismiss={() => setVisible(false)} onConfirm={onConfirmManual} hours={new Date().getHours()} minutes={new Date().getMinutes()} use24HourClock={timeFormat === '24h'} />
         </View>
-      </KeyboardAvoidingView>
+      {/*</KeyboardAvoidingView>*/}
     </PaperProvider>
   );
 }

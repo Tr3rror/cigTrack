@@ -1,11 +1,43 @@
 import React, { useState, useEffect } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Switch } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Alert, Switch, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
+
 import { useTheme } from '@/C_Custom/ThemeContext';
 import { ColorPickerModal } from '@/C_Custom/ColorPickerModal';
-import { useTranslation } from 'react-i18next';
+
+// SAFE IMPORT: This prevents the crash in Expo Go
+let DynamicAppIcon: any;
+try {
+  DynamicAppIcon = require('expo-dynamic-app-icon');
+} catch (error) {
+  DynamicAppIcon = {
+    setAppIcon: async () => {
+      Alert.alert("Dev Mode", "Icon changing is not supported in Expo Go. Please use a Development Build.");
+      return false;
+    }
+  };
+}
+
+const APP_ICONS = [
+  {
+    name: 'Default',
+    value: 'Default',
+    image: require('@/assets/cig_icon/icon.png')
+  },
+  {
+    name: 'Full Name',
+    value: 'Full_Name',
+    image: require('@/assets/cig_text/icon.png')
+  },
+  {
+    name: 'Monkey',
+    value: 'Monkey',
+    image: require('@/assets/monkey/icon.png')
+  },
+];
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -13,7 +45,7 @@ export default function Settings() {
     colors, setCustomColor, toggleTheme, isDark, saveThemeToSlot,
     applySlot, slots, activeSlot, resetTheme, timeFormat,
     toggleTimeFormat, isManualMode, toggleManualMode, statsPrefs,
-    toggleStat, commentsEnabled, toggleComments, longCigsEnabled, 
+    toggleStat, commentsEnabled, toggleComments, longCigsEnabled,
     toggleLongCigs, language, changeLanguage
   } = useTheme();
 
@@ -24,7 +56,16 @@ export default function Settings() {
     if (activeSlot !== null) setSelectedSlot(activeSlot);
   }, [activeSlot]);
 
-  // Optimized Switch for visibility
+  const changeAppIcon = async (iconValue: string) => {
+    try {
+      if (DynamicAppIcon && DynamicAppIcon.setAppIcon) {
+        await DynamicAppIcon.setAppIcon(iconValue);
+      }
+    } catch (error) {
+      console.log("Icon change failed:", error);
+    }
+  };
+
   const RenderSwitch = ({ value, onValueChange }: any) => (
     <Switch
       value={value}
@@ -60,62 +101,42 @@ export default function Settings() {
           <Ionicons name="arrow-back" size={28} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.text }]}>{t('settings')}</Text>
-        <TouchableOpacity onPress={toggleTheme} style={styles.themeBtn}>
-          <Ionicons name={isDark ? "sunny" : "moon"} size={24} color={colors.text} />
-        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        
-        {/* SECTION: APPEARANCE (WYSIWYG Mode) */}
+
+        {/* SECTION: APP ICON */}
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t('appIcon') || "App Icon"}</Text>
+          <View style={[styles.iconRow, { backgroundColor: colors.card }]}>
+            {APP_ICONS.map((icon) => (
+              <TouchableOpacity
+                key={icon.value}
+                onPress={() => changeAppIcon(icon.value)}
+                style={styles.iconOption}
+              >
+                <View style={[styles.iconPreview, { borderColor: colors.border }]}>
+                  <Image
+                    source={icon.image}
+                    style={styles.actualIconImage}
+                    resizeMode="cover"
+                  />
+                </View>
+                <Text style={[styles.iconLabel, { color: colors.text }]}>{icon.name}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* SECTION: APPEARANCE */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t('appearance')}</Text>
           <View style={styles.pickersGrid}>
-            
-            {/* Primary: Row is Card Color, Label is Primary */}
-            <ColorPickerModal 
-              label={t('primary')} 
-              currentColor={colors.primary} 
-              onSelect={(c) => setCustomColor('primary', c)} 
-              labelColor={colors.primary} 
-              containerColor={colors.card}
-            />
-
-            {/* Background: Row background IS the theme background color */}
-            <ColorPickerModal 
-              label={t('bg')} 
-              currentColor={colors.background} 
-              onSelect={(c) => setCustomColor(isDark ? 'bgDark' : 'bgLight', c)} 
-              labelColor={colors.text} 
-              containerColor={colors.card} 
-            />
-
-            {/* Card: Row background IS the theme card color */}
-            <ColorPickerModal 
-              label={t('card')} 
-              currentColor={colors.card} 
-              onSelect={(c) => setCustomColor(isDark ? 'cardDark' : 'cardLight', c)} 
-              labelColor={colors.text} 
-              containerColor={colors.card} 
-            />
-
-            {/* Text: Row is Card Color, Label IS the theme text color */}
-            <ColorPickerModal 
-              label={t('text')} 
-              currentColor={colors.text} 
-              onSelect={(c) => setCustomColor(isDark ? 'textDark' : 'textLight', c)} 
-              labelColor={colors.text} 
-              containerColor={colors.card}
-            />
-
-            {/* Accent: Row is Card Color, Label IS the theme accent color */}
-            <ColorPickerModal 
-              label={t('accent')} 
-              currentColor={colors.accent} 
-              onSelect={(c) => setCustomColor('accent', c)} 
-              labelColor={colors.accent} 
-              containerColor={colors.card}
-            />
+            <ColorPickerModal label={t('primary')} currentColor={colors.primary} onSelect={(c) => setCustomColor('primary', c)} labelColor={colors.primary} containerColor={colors.card} />
+            <ColorPickerModal label={t('bg')} currentColor={colors.background} onSelect={(c) => setCustomColor(isDark ? 'bgDark' : 'bgLight', c)} labelColor={colors.text} containerColor={colors.card} />
+            <ColorPickerModal label={t('card')} currentColor={colors.card} onSelect={(c) => setCustomColor(isDark ? 'cardDark' : 'cardLight', c)} labelColor={colors.text} containerColor={colors.card} />
+            <ColorPickerModal label={t('text')} currentColor={colors.text} onSelect={(c) => setCustomColor(isDark ? 'textDark' : 'textLight', c)} labelColor={colors.text} containerColor={colors.card} />
+            <ColorPickerModal label={t('accent')} currentColor={colors.accent} onSelect={(c) => setCustomColor('accent', c)} labelColor={colors.accent} containerColor={colors.card} />
           </View>
         </View>
 
@@ -124,21 +145,21 @@ export default function Settings() {
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t('slots')}</Text>
           <View style={styles.slotsRow}>
             {[0, 1, 2].map((i) => (
-              <TouchableOpacity 
-                key={i} 
-                onPress={() => { setSelectedSlot(i); if(slots[i]) applySlot(i); }}
-                style={[styles.slotCard, { 
-                    backgroundColor: colors.card, 
-                    borderColor: selectedSlot === i ? colors.primary : colors.accent + '22' 
+              <TouchableOpacity
+                key={i}
+                onPress={() => { setSelectedSlot(i); if (slots[i]) applySlot(i); }}
+                style={[styles.slotCard, {
+                  backgroundColor: colors.card,
+                  borderColor: selectedSlot === i ? colors.primary : colors.accent + '22'
                 }]}
               >
                 <View style={[styles.slotIndicator, { backgroundColor: slots[i]?.primary || (isDark ? '#333' : '#CCC') }]} />
                 <Text style={[styles.slotText, { color: colors.text }]}>SLOT {i + 1}</Text>
-                {!slots[i] && <Text style={[styles.emptyText, {color: colors.accent}]}>{t('empty')}</Text>}
+                {!slots[i] && <Text style={[styles.emptyText, { color: colors.accent }]}>{t('empty')}</Text>}
               </TouchableOpacity>
             ))}
           </View>
-          <TouchableOpacity style={styles.resetBtn} onPress={() => Alert.alert(t('reset'), "", [{text: "No"}, {text: "Yes", onPress: resetTheme}])}>
+          <TouchableOpacity style={styles.resetBtn} onPress={() => Alert.alert(t('reset'), "", [{ text: "No" }, { text: "Yes", onPress: resetTheme }])}>
             <Text style={[styles.resetText, { color: colors.accent }]}>{t('reset')}</Text>
           </TouchableOpacity>
         </View>
@@ -146,7 +167,7 @@ export default function Settings() {
         {/* SECTION: LANGUAGE & FEATURES */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t('features')}</Text>
-          
+
           <View style={[styles.prefRow, { backgroundColor: colors.card }]}>
             <Text style={[styles.prefLabel, { color: colors.text }]}>{t('lang')}</Text>
             <View style={styles.langToggle}>
@@ -192,10 +213,10 @@ export default function Settings() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.primary }]}>{t('homeStats')}</Text>
           <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
-            <SettingItem 
-              label={t('peak')} 
-              sub={t('peakSub')} 
-              right={<RenderSwitch value={statsPrefs.showPeriod} onValueChange={() => toggleStat('showPeriod')} />} 
+            <SettingItem
+              label={t('peak')}
+              sub={t('peakSub')}
+              right={<RenderSwitch value={statsPrefs.showPeriod} onValueChange={() => toggleStat('showPeriod')} />}
             />
             <View style={[styles.gridStats, { borderTopColor: colors.accent + '22' }]}>
               <MiniStat label={t('tot7d')} val={statsPrefs.show7dTotal} onToggle={() => toggleStat('show7dTotal')} />
@@ -209,8 +230,8 @@ export default function Settings() {
 
       {/* FOOTER */}
       <View style={[styles.bottomContainer, { backgroundColor: colors.background, borderTopColor: colors.accent + '22' }]}>
-        <TouchableOpacity 
-          style={[styles.saveBtn, { backgroundColor: colors.primary }]} 
+        <TouchableOpacity
+          style={[styles.saveBtn, { backgroundColor: colors.primary }]}
           onPress={async () => { await saveThemeToSlot(selectedSlot); Alert.alert("Success"); }}
         >
           <Text style={styles.saveBtnText}>{t('saveSlot')} {selectedSlot + 1}</Text>
@@ -255,4 +276,9 @@ const styles = StyleSheet.create({
   bottomContainer: { position: 'absolute', bottom: 0, width: '100%', padding: 20, borderTopWidth: 1 },
   saveBtn: { height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 5 },
   saveBtnText: { color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 1 },
+  iconRow: { flexDirection: 'row', justifyContent: 'space-between', padding: 15, borderRadius: 18 },
+  iconOption: { alignItems: 'center', width: '22%' },
+  iconPreview: { width: 45, height: 45, borderRadius: 12, marginBottom: 8, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  iconLabel: { fontSize: 10, fontWeight: '700' },
+  actualIconImage: { width: 40, height: 40 },
 });
