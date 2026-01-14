@@ -4,16 +4,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Provider as PaperProvider, MD3DarkTheme, MD3LightTheme } from 'react-native-paper';
+import { useTranslation } from 'react-i18next';
 
 import { useData } from '@/C_Custom/DataContext';
 import { useTheme } from '@/C_Custom/ThemeContext';
 import { CalendarView } from '@/C_Custom/CalendarView';
 import { LogDetailSheet } from '@/C_Custom/LogDetailSheet';
 
-
 export default function Home() {
-
-  const { colors, statsPrefs, isDark, timeFormat } = useTheme();
+  const { t } = useTranslation();
+  const { colors, statsPrefs, isDark, timeFormat, language } = useTheme();
   const { dailyData, deleteLog } = useData();
   const router = useRouter();
 
@@ -33,8 +33,6 @@ export default function Home() {
     return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
   };
 
-  // Optimized Stats Logic in Home.tsx
-  // Inside Home.tsx -> stats useMemo
   const stats = useMemo(() => {
     const today = new Date();
     const currentMonthPrefix = today.toISOString().slice(0, 7);
@@ -62,10 +60,10 @@ export default function Home() {
 
     const peakKey = Object.entries(periodBuckets).reduce((a, b) => a[1] > b[1] ? a : b)[0];
     const peakLabels: Record<string, string> = {
-      night: `NOTTE (${formatDisplayTime('00:00', timeFormat)})`,
-      morning: `MATTINA (${formatDisplayTime('08:00', timeFormat)})`,
-      afternoon: `POMERIGGIO (${formatDisplayTime('12:00', timeFormat)})`,
-      evening: `SERA (${formatDisplayTime('17:00', timeFormat)})`
+      night: `${t('night')} (${formatDisplayTime('00:00', timeFormat)})`,
+      morning: `${t('morning')} (${formatDisplayTime('08:00', timeFormat)})`,
+      afternoon: `${t('afternoon')} (${formatDisplayTime('12:00', timeFormat)})`,
+      evening: `${t('evening')} (${formatDisplayTime('17:00', timeFormat)})`
     };
 
     return {
@@ -75,9 +73,7 @@ export default function Home() {
       avgMonth: today.getDate() > 0 ? sumMonth / today.getDate() : 0,
       peakPeriodLabel: sum7d > 0 ? peakLabels[peakKey] : "---"
     };
-  }, [dailyData, viewMode, timeFormat]);
-
-  const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
+  }, [dailyData, viewMode, timeFormat, t]);
 
   const filteredLogs = useMemo(() => {
     if (!selectedDay || !dailyData[selectedDay]) return [];
@@ -93,53 +89,41 @@ export default function Home() {
     );
   }, [viewDate]);
 
-
+  const paperTheme = isDark ? MD3DarkTheme : MD3LightTheme;
 
   return (
     <PaperProvider theme={{ ...paperTheme, colors: { ...paperTheme.colors, primary: colors.primary } }}>
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
 
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={30} color={colors.text} />
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={28} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.modeToggle}>
-            <TouchableOpacity
-              onPress={() => setViewMode('cig')}
-              style={[styles.modeBtn, viewMode === 'cig' && { backgroundColor: colors.primary }]}
-            >
-              <Text style={[styles.modeText, { color: viewMode === 'cig' ? '#FFF' : colors.text }]}>🚬 Sigarette</Text>
+            <TouchableOpacity onPress={() => setViewMode('cig')} style={[styles.modeBtn, viewMode === 'cig' && { backgroundColor: colors.primary }]}>
+              <Text style={[styles.modeText, { color: viewMode === 'cig' ? '#FFF' : colors.text }]}>{t('cigMode')}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setViewMode('other')}
-              style={[styles.modeBtn, viewMode === 'other' && { backgroundColor: colors.primary }]}
-            >
-              <Text style={[styles.modeText, { color: viewMode === 'other' ? '#FFF' : colors.text }]}>✨ Altro</Text>
+            <TouchableOpacity onPress={() => setViewMode('other')} style={[styles.modeBtn, viewMode === 'other' && { backgroundColor: colors.primary }]}>
+              <Text style={[styles.modeText, { color: viewMode === 'other' ? '#FFF' : colors.text }]}>{t('otherMode')}</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ width: 30 }} />
+          <View style={{ width: 40 }} />
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
 
-          <TouchableOpacity
-            style={[styles.analyticsLink, { backgroundColor: colors.card }]}
-            onPress={() => router.push({
-              pathname: '/PeriodAnalytics',
-              params: { initialMode: viewMode }
-            })}
-          >
+          <TouchableOpacity style={[styles.analyticsLink, { backgroundColor: colors.card }]} onPress={() => router.push({ pathname: '/PeriodAnalytics', params: { initialMode: viewMode } })}>
             <View style={styles.analyticsLinkContent}>
-              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '22' }]}>
-                <Ionicons name="stats-chart" size={22} color={colors.primary} />
+              <View style={[styles.iconCircle, { backgroundColor: colors.primary + '15' }]}>
+                <Ionicons name="stats-chart" size={20} color={colors.primary} />
               </View>
               <View>
-                <Text style={[styles.linkTitle, { color: colors.text }]}>Analisi Periodo</Text>
-                <Text style={[styles.linkSub, { color: colors.accent }]}>Scegli un intervallo e vedi i picchi</Text>
+                <Text style={[styles.linkTitle, { color: colors.text }]}>{t('analysisTitle')}</Text>
+                <Text style={[styles.linkSub, { color: colors.text }]}>{t('analysisSub')}</Text>
               </View>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={colors.accent} />
+            <Ionicons name="chevron-forward" size={18} color={colors.text} />
           </TouchableOpacity>
 
           <View style={styles.statsGrid}>
@@ -147,140 +131,83 @@ export default function Home() {
               {statsPrefs.show7dTotal && (
                 <View style={[styles.statBox, { backgroundColor: colors.card }]}>
                   <Text style={[styles.statValue, { color: colors.text }]}>{stats.sum7d.toFixed(1)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOT 7GG</Text>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>{t('tot7d')}</Text>
                 </View>
               )}
               {statsPrefs.show7dAvg && (
                 <View style={[styles.statBox, { backgroundColor: colors.card }]}>
                   <Text style={[styles.statValue, { color: colors.text }]}>{stats.avg7d.toFixed(1)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA 7GG</Text>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>{t('avg7d')}</Text>
                 </View>
               )}
             </View>
 
-            <View style={[styles.statsRow, { marginTop: 12 }]}>
+            <View style={[styles.statsRow, { marginTop: 10 }]}>
               {statsPrefs.showMonthTotal && (
                 <View style={[styles.statBox, { backgroundColor: colors.card }]}>
                   <Text style={[styles.statValue, { color: colors.text }]}>{stats.sumMonth.toFixed(1)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>TOT MESE</Text>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>{t('totMonth')}</Text>
                 </View>
               )}
               {statsPrefs.showMonthAvg && (
                 <View style={[styles.statBox, { backgroundColor: colors.card }]}>
                   <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgMonth.toFixed(1)}</Text>
-                  <Text style={[styles.statLabel, { color: colors.accent }]}>MEDIA MESE</Text>
+                  <Text style={[styles.statLabel, { color: colors.text }]}>{t('avgMonth')}</Text>
                 </View>
               )}
             </View>
 
             {statsPrefs.showPeriod && (
-              <View style={[styles.statsRow, { marginTop: 12 }]}>
-                <View style={[styles.statBox, { backgroundColor: colors.card, flexDirection: 'row', gap: 10 }]}>
-                  <Ionicons name="time-outline" size={24} color={colors.primary} />
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={[styles.statValue, { color: colors.text, fontSize: 16 }]}>{stats.peakPeriodLabel}</Text>
-                    <Text style={[styles.statLabel, { color: colors.accent }]}>PICCO 7GG</Text>
+              <View style={[styles.statsRow, { marginTop: 10 }]}>
+                <View style={[styles.statBox, { backgroundColor: colors.card, flexDirection: 'row', gap: 12 }]}>
+                  <Ionicons name="time-outline" size={22} color={colors.primary} />
+                  <View>
+                    <Text style={[styles.statValue, { color: colors.text, fontSize: 15 }]}>{stats.peakPeriodLabel}</Text>
+                    <Text style={[styles.statLabel, { color: colors.text }]}>{t('peak7d')}</Text>
                   </View>
                 </View>
               </View>
             )}
-
           </View>
 
           <View style={styles.calendarHeader}>
             <TouchableOpacity onPress={() => changeMonth(-1)}>
-              <Ionicons name="chevron-back" size={24} color={colors.primary} />
+              <Ionicons name="chevron-back" size={22} color={colors.primary} />
             </TouchableOpacity>
             <Text style={[styles.monthLabel, { color: colors.text }]}>
-              {viewDate.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' }).toUpperCase()}
+              {viewDate.toLocaleDateString(language === 'it' ? 'it-IT' : 'en-US', { month: 'long', year: 'numeric' }).toUpperCase()}
             </Text>
             <TouchableOpacity onPress={() => changeMonth(1)}>
-              <Ionicons name="chevron-forward" size={24} color={colors.primary} />
+              <Ionicons name="chevron-forward" size={22} color={colors.primary} />
             </TouchableOpacity>
           </View>
 
-          <CalendarView
-            viewMode={viewMode}
-            colors={colors}
-            calendarDays={calendarDays}
-            dailyData={dailyData}
-            onDayPress={setSelectedDay}
-          />
-
+          <CalendarView viewMode={viewMode} colors={colors} calendarDays={calendarDays} dailyData={dailyData} onDayPress={setSelectedDay} />
         </ScrollView>
 
-        <LogDetailSheet
-          selectedDay={selectedDay}
-          onClose={() => setSelectedDay(null)}
-          logs={filteredLogs}
-          colors={colors}
-          deleteLog={deleteLog}
-        />
+        <LogDetailSheet selectedDay={selectedDay} onClose={() => setSelectedDay(null)} logs={filteredLogs} colors={colors} deleteLog={deleteLog} />
       </SafeAreaView>
     </PaperProvider>
   );
 }
 
-
-
 const styles = StyleSheet.create({
   container: { flex: 1, paddingHorizontal: 20 },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 15
-  },
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#33333315',
-    borderRadius: 25,
-    padding: 4,
-    flex: 1,
-    marginHorizontal: 20
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignItems: 'center'
-  },
-  modeText: { fontSize: 13, fontWeight: 'bold' },
-  analyticsLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 20,
-    marginVertical: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4
-  },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 15 },
+  backBtn: { width: 40, height: 40, justifyContent: 'center', alignItems: 'flex-start' },
+  modeToggle: { flexDirection: 'row', backgroundColor: '#88888820', borderRadius: 25, padding: 4, flex: 1, marginLeft: 15 },
+  modeBtn: { flex: 1, paddingVertical: 8, borderRadius: 20, alignItems: 'center' },
+  modeText: { fontSize: 13, fontWeight: '800' },
+  analyticsLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderRadius: 20, marginVertical: 8 },
   analyticsLinkContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconCircle: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
-  linkTitle: { fontSize: 15, fontWeight: '800' },
-  linkSub: { fontSize: 11, marginTop: 2 },
-  statsGrid: { marginVertical: 15 },
-  statsRow: { flexDirection: 'row', gap: 12 },
-  statBox: {
-    flex: 1,
-    padding: 18,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  statValue: { fontSize: 22, fontWeight: '900', marginBottom: 4 },
-  statLabel: { fontSize: 9, fontWeight: 'bold', letterSpacing: 0.5 },
-  calendarHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 25,
-    marginBottom: 15
-  },
-  monthLabel: { fontWeight: '900', fontSize: 15, letterSpacing: 1 },
-
+  iconCircle: { width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+  linkTitle: { fontSize: 14, fontWeight: '800' },
+  linkSub: { fontSize: 10, marginTop: 1 },
+  statsGrid: { marginVertical: 10 },
+  statsRow: { flexDirection: 'row', gap: 10 },
+  statBox: { flex: 1, padding: 16, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontSize: 20, fontWeight: '900' },
+  statLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
+  calendarHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 20, marginBottom: 12 },
+  monthLabel: { fontWeight: '900', fontSize: 14, letterSpacing: 1 },
 });

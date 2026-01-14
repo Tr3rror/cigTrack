@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, Easing } from 'react-native-reanimated';
 import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { scheduleOnRN } from 'react-native-worklets';
+import { useTranslation } from 'react-i18next';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SNAP_POINTS = { CLOSED: 0, HALF: -SCREEN_HEIGHT * 0.5, FULL: -SCREEN_HEIGHT * 0.85 };
@@ -16,6 +17,7 @@ const formatTime = (t24: string, fmt: '12h' | '24h') => {
 };
 
 export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog, timeFormat }: any) => {
+  const { t } = useTranslation();
   const translateY = useSharedValue(0);
   const context = useSharedValue(0);
 
@@ -63,11 +65,11 @@ export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog, 
         <GestureDetector gesture={panGesture}>
           <View style={styles.dragZone}>
             <View style={styles.handleContainer}><View style={[styles.handle, { backgroundColor: colors.accent + '44' }]} /></View>
-            <View style={styles.header}><Text style={[styles.title, { color: colors.text }]}>Dettagli Giorno</Text><Text style={[styles.dateSub, { color: colors.accent }]}>{selectedDay}</Text></View>
+            <View style={styles.header}><Text style={[styles.title, { color: colors.text }]}>{t('homeStats')}</Text><Text style={[styles.dateSub, { color: colors.accent }]}>{selectedDay}</Text></View>
           </View>
         </GestureDetector>
         <ScrollView contentContainerStyle={styles.scrollContent}>
-          {logs.length === 0 ? <Text style={[styles.emptyText, { color: colors.accent }]}>Nessuna registrazione.</Text> : logs.map((log: any, index: number) => (
+          {logs.length === 0 ? <Text style={[styles.emptyText, { color: colors.accent }]}>{t('noneToday')}</Text> : logs.map((log: any, index: number) => (
             <View key={index} style={[styles.logRow, { borderBottomColor: colors.background }]}>
               <View style={{ flex: 1 }}><Text style={[styles.logTime, { color: colors.text }]}>{formatTime(log.time, timeFormat)}</Text>{log.comment && <Text style={[styles.logComment, { color: colors.accent }]}>{log.comment}</Text>}</View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}><Text style={[styles.logAmount, { color: colors.primary }]}>+{log.amount}</Text>
