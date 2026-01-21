@@ -2,10 +2,10 @@
   "expo": {
     "name": "CigTrak",
     "slug": "cigarett",
-    "version": "2.0.0",
+    "version": "2.9.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "cigarett",
+    "scheme": "cigtrak",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -15,9 +15,9 @@
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "assets/images/react-logo@2x.png",
+        "backgroundImage": "assets/images/react-logo@2x.png",
+        "monochromeImage": "assets/images/react-logo@2x.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
