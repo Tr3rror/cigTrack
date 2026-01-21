@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "CigTrak",
-    "slug": "cigarett",
+    "slug": "CigTrak",
     "version": "2.9.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
