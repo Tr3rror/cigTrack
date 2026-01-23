@@ -185,7 +185,15 @@ export default function Home() {
           <CalendarView viewMode={viewMode} colors={colors} calendarDays={calendarDays} dailyData={dailyData} onDayPress={setSelectedDay} />
         </ScrollView>
 
-        <LogDetailSheet selectedDay={selectedDay} onClose={() => setSelectedDay(null)} logs={filteredLogs} colors={colors} deleteLog={deleteLog} />
+        {/* FIXED: timeFormat is now passed to the sheet */}
+        <LogDetailSheet 
+          selectedDay={selectedDay} 
+          onClose={() => setSelectedDay(null)} 
+          logs={filteredLogs} 
+          colors={colors} 
+          deleteLog={deleteLog}
+          timeFormat={timeFormat}
+        />
       </SafeAreaView>
     </PaperProvider>
   );

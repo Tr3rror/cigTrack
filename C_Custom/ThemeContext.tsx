@@ -122,7 +122,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const theme: ThemeContextType = {
-    isDark, toggleTheme,
+    isDark, 
+    toggleTheme,
     colors: {
       background: isDark ? customColors.bgDark : customColors.bgLight,
       text: isDark ? customColors.textDark : customColors.textLight,
@@ -131,11 +132,11 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       card: isDark ? customColors.cardDark : customColors.cardLight,
       border: isDark ? '#333333' : '#E0E0E0',
     },
-    // ... rest of logic mapping (resetTheme, toggleStat, etc.) remains similar but using updated keys
     resetTheme: () => {
       setCustomColors(DEFAULT_COLORS);
       setIsDark(systemScheme === 'dark');
       AsyncStorage.removeItem('current_theme');
+      // You might also want to reset other prefs here if desired
     },
     setCustomColor,
     saveThemeToSlot: async (index) => {
@@ -143,24 +144,57 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setSlots(newSlots);
       await AsyncStorage.setItem('theme_slots', JSON.stringify(newSlots));
       setActiveSlot(index);
+      await AsyncStorage.setItem('active_slot_index', index.toString());
     },
     applySlot: (index) => {
       if (slots[index]) {
         setCustomColors(slots[index]!);
         setActiveSlot(index);
+        AsyncStorage.setItem('active_slot_index', index.toString());
       }
     },
-    slots, activeSlot, timeFormat, 
-    toggleTimeFormat: () => setTimeFormat(p => p === '24h' ? '12h' : '24h'),
+    slots, 
+    activeSlot, 
+    
+    // --- FIXED TOGGLES BELOW ---
+    
+    timeFormat, 
+    toggleTimeFormat: () => setTimeFormat(prev => {
+        const newVal = prev === '24h' ? '12h' : '24h';
+        AsyncStorage.setItem('time_format', newVal);
+        return newVal;
+    }),
+
     isManualMode, 
-    toggleManualMode: () => setIsManualMode(p => !p),
+    toggleManualMode: () => setIsManualMode(prev => {
+        const newVal = !prev;
+        AsyncStorage.setItem('is_manual_mode', JSON.stringify(newVal));
+        return newVal;
+    }),
+
     statsPrefs,
-    toggleStat: (key) => setStatsPrefs(p => ({ ...p, [key]: !p[key] })),
+    toggleStat: (key) => setStatsPrefs(prev => {
+        const newVal = { ...prev, [key]: !prev[key] };
+        AsyncStorage.setItem('stats_prefs', JSON.stringify(newVal));
+        return newVal;
+    }),
+
     commentsEnabled,
-    toggleComments: () => setCommentsEnabled(p => !p),
+    toggleComments: () => setCommentsEnabled(prev => {
+        const newVal = !prev;
+        AsyncStorage.setItem('prefs_comments', JSON.stringify(newVal));
+        return newVal;
+    }),
+
     longCigsEnabled,
-    toggleLongCigs: () => setLongCigsEnabled(p => !p),
-    language, changeLanguage
+    toggleLongCigs: () => setLongCigsEnabled(prev => {
+        const newVal = !prev;
+        AsyncStorage.setItem('prefs_longcigs', JSON.stringify(newVal));
+        return newVal;
+    }),
+
+    language, 
+    changeLanguage
   };
 
   return <ThemeContext.Provider value={theme}>{children}</ThemeContext.Provider>;

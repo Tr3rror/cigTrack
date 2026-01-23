@@ -10,10 +10,15 @@ const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SNAP_POINTS = { CLOSED: 0, HALF: -SCREEN_HEIGHT * 0.5, FULL: -SCREEN_HEIGHT * 0.85 };
 const THRESHOLDS = { CLOSE: -SCREEN_HEIGHT * 0.2, EXPAND: -SCREEN_HEIGHT * 0.65 };
 
-const formatTime = (t24: string, fmt: '12h' | '24h') => {
-  if (fmt === '24h') return t24;
-  const [h, m] = t24.split(':').map(Number);
-  return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+// HELPER: Format time based on preference
+const formatTime = (time24: string, format: '12h' | '24h') => {
+  if (!time24) return "--:--";
+  if (format === '24h') return time24;
+  
+  const [h, m] = time24.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, '0')} ${suffix}`;
 };
 
 export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog, timeFormat }: any) => {
@@ -71,9 +76,15 @@ export const LogDetailSheet = ({ selectedDay, onClose, logs, colors, deleteLog, 
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {logs.length === 0 ? <Text style={[styles.emptyText, { color: colors.accent }]}>{t('noneToday')}</Text> : logs.map((log: any, index: number) => (
             <View key={index} style={[styles.logRow, { borderBottomColor: colors.background }]}>
-              <View style={{ flex: 1 }}><Text style={[styles.logTime, { color: colors.text }]}>{formatTime(log.time, timeFormat)}</Text>{log.comment && <Text style={[styles.logComment, { color: colors.accent }]}>{log.comment}</Text>}</View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}><Text style={[styles.logAmount, { color: colors.primary }]}>+{log.amount}</Text>
-              <TouchableOpacity onPress={() => deleteLog(selectedDay, log.date)}><Ionicons name="trash-outline" size={20} color="#FF4444" /></TouchableOpacity></View>
+              <View style={{ flex: 1 }}>
+                {/* Apply formatTime helper here */}
+                <Text style={[styles.logTime, { color: colors.text }]}>{formatTime(log.time, timeFormat)}</Text>
+                {log.comment && <Text style={[styles.logComment, { color: colors.accent }]}>{log.comment}</Text>}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <Text style={[styles.logAmount, { color: colors.primary }]}>+{log.amount}</Text>
+                <TouchableOpacity onPress={() => deleteLog(selectedDay, log.date)}><Ionicons name="trash-outline" size={20} color="#FF4444" /></TouchableOpacity>
+              </View>
             </View>
           ))}
         </ScrollView>

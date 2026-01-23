@@ -42,7 +42,16 @@ const resources = {
       lastAt: "Last at",
       noneToday: "No sessions today",
       manualLabel: "MANUAL",
-      notePlaceholder: "Session note..."
+      notePlaceholder: "Session note...",
+      // Missing keys added below
+      appearance: "Appearance",
+      slots: "Theme Slots",
+      empty: "Empty",
+      lang: "Language",
+      timeFmt: "Time Format",
+      commentsSub: "Enable comments on logs",
+      longCigsSub: "Increase fill limit to 120%",
+      peakSub: "Show peak period in stats"
     }
   },
   it: {
@@ -85,7 +94,16 @@ const resources = {
       lastAt: "Ultima alle",
       noneToday: "Nessuna sessione oggi",
       manualLabel: "MANUALE",
-      notePlaceholder: "Nota sessione..."
+      notePlaceholder: "Nota sessione...",
+      // Missing keys added below
+      appearance: "Aspetto",
+      slots: "Slot Temi",
+      empty: "Vuoto",
+      lang: "Lingua",
+      timeFmt: "Formato Orario",
+      commentsSub: "Abilita commenti sui log",
+      longCigsSub: "Aumenta riempimento al 120%",
+      peakSub: "Mostra periodo di picco"
     }
   }
 };
